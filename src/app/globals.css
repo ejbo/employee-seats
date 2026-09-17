@@ -1,0 +1,193 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-subtle: var(--subtle);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-danger: var(--danger);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-info: var(--info);
+  --color-ring: var(--ring);
+
+  /* 地图专用 */
+  --color-map-canvas: var(--map-canvas);
+  --color-map-floor: var(--map-floor);
+  --color-map-grid: var(--map-grid);
+  --color-map-wall: var(--map-wall);
+  --color-seat-fill: var(--seat-fill);
+  --color-seat-stroke: var(--seat-stroke);
+  --color-seat-text: var(--seat-text);
+  --color-seat-sub: var(--seat-sub);
+
+  --font-sans:
+    var(--font-geist-sans), -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB",
+    "Microsoft YaHei", "Noto Sans CJK SC", "Helvetica Neue", Arial, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 18px;
+  --radius-pill: 9999px;
+
+  --shadow-lift: 0 1px 2px rgba(16, 16, 20, 0.04), 0 8px 24px -12px rgba(16, 16, 20, 0.18);
+  --shadow-pop: 0 2px 6px rgba(16, 16, 20, 0.06), 0 16px 40px -16px rgba(16, 16, 20, 0.28);
+}
+
+/* 浅色优先、克制、像一张精致的印刷平面图 */
+:root {
+  --background: #fafafa;
+  --foreground: #18181b;
+  --surface: #ffffff;
+  --surface-2: #f7f7f8;
+  --border: #e6e6ea;
+  --border-strong: #d2d2d8;
+  --muted: #f2f2f4;
+  --muted-foreground: #6b6b76;
+  --subtle: #a0a0ab;
+  --accent: #eef2ff;
+  --accent-foreground: #3730a3;
+  --primary: #18181b;
+  --primary-foreground: #ffffff;
+  --danger: #dc2626;
+  --success: #16a34a;
+  --warning: #d97706;
+  --info: #2563eb;
+  --ring: rgba(24, 24, 27, 0.16);
+
+  --map-canvas: #f3f3f5;
+  --map-floor: #ffffff;
+  --map-grid: #e4e4e8;
+  --map-wall: #3f3f46;
+  --seat-fill: #ffffff;
+  --seat-stroke: #cfcfd6;
+  --seat-text: #18181b;
+  --seat-sub: #6b6b76;
+}
+
+.dark {
+  --background: #0b0b0d;
+  --foreground: #f4f4f5;
+  --surface: #131316;
+  --surface-2: #17171b;
+  --border: #26262c;
+  --border-strong: #35353d;
+  --muted: #1b1b20;
+  --muted-foreground: #a1a1aa;
+  --subtle: #6d6d78;
+  --accent: #1e1b4b;
+  --accent-foreground: #c7d2fe;
+  --primary: #f4f4f5;
+  --primary-foreground: #0b0b0d;
+  --danger: #f87171;
+  --success: #4ade80;
+  --warning: #fbbf24;
+  --info: #60a5fa;
+  --ring: rgba(244, 244, 245, 0.18);
+
+  --map-canvas: #0e0e11;
+  --map-floor: #151519;
+  --map-grid: #232329;
+  --map-wall: #a1a1aa;
+  --seat-fill: #1b1b20;
+  --seat-stroke: #35353d;
+  --seat-text: #f4f4f5;
+  --seat-sub: #a1a1aa;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background: rgba(37, 99, 235, 0.18);
+}
+
+/* ── 细滚动条 ── */
+.thin-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+.thin-scrollbar:hover {
+  scrollbar-color: var(--border-strong) transparent;
+}
+.thin-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.thin-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.thin-scrollbar::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 999px;
+  transition: background 0.2s;
+}
+.thin-scrollbar:hover::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+}
+
+/* ── 面板/页面进入 ── */
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.animate-rise {
+  animation: rise 0.28s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+/* ── 地图：区域淡色（浅色正片叠底、深色滤色，底图仍可读）── */
+.zone-tint {
+  fill-opacity: 0.09;
+  mix-blend-mode: multiply;
+}
+.dark .zone-tint {
+  fill-opacity: 0.16;
+  mix-blend-mode: screen;
+}
+
+/* ── 地图：定位脉冲 ── */
+@keyframes seat-pulse {
+  0% {
+    opacity: 0.9;
+    stroke-width: 2;
+  }
+  100% {
+    opacity: 0;
+    stroke-width: 14;
+  }
+}
+.seat-pulse {
+  animation: seat-pulse 0.9s ease-out 2;
+  transform-box: fill-box;
+  transform-origin: center;
+}

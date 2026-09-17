@@ -1,0 +1,249 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  schemas  = ["employee_seats"]
+}
+
+enum GlobalRole {
+  USER
+  ADMIN
+  SUPER_ADMIN
+
+  @@schema("employee_seats")
+}
+
+enum OfficeRole {
+  EDITOR
+  MANAGER
+
+  @@schema("employee_seats")
+}
+
+enum SeatStatus {
+  ACTIVE
+  RESERVED
+  DISABLED
+
+  @@schema("employee_seats")
+}
+
+/// 登录账号：每个 SSO 登录者一行。不是花名册（见 Employee）。
+model User {
+  id           String     @id @default(cuid())
+  /// 工号（W3 uid），唯一可信的身份键
+  huaweiW3Id   String     @unique
+  /// SSO 给的姓名，只写一次
+  huaweiW3Name String
+  /// 可编辑的显示名
+  displayName  String
+  email        String?
+  employeeType String?
+  phone        String?
+  /// 首次登录时的 userinfo 原始载荷
+  rawProfile   Json?
+  role         GlobalRole @default(USER)
+  isActive     Boolean    @default(true)
+  lastLoginAt  DateTime?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  employee    Employee?
+  grants      OfficePermission[] @relation("GrantHolder")
+  grantsGiven OfficePermission[] @relation("GrantGiver")
+  auditLogs   AuditLog[]
+
+  @@schema("employee_seats")
+}
+
+/// 办公室：研究所 / 城市 / 名称 / 地址
+model Office {
+  id          String   @id @default(cuid())
+  institute   String
+  city        String
+  name        String
+  address     String   @default("")
+  description String   @default("")
+  sortOrder   Int      @default(0)
+  createdById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  floors      Floor[]
+  seats       Seat[]
+  permissions OfficePermission[]
+
+  @@unique([institute, city, name])
+  @@schema("employee_seats")
+}
+
+/// 楼层：一张地图。坐标单位厘米，y 向下。
+model Floor {
+  id            String   @id @default(cuid())
+  officeId      String
+  office        Office   @relation(fields: [officeId], references: [id], onDelete: Cascade)
+  name          String
+  sortOrder     Int      @default(0)
+  /// 画布宽（cm）
+  width         Int      @default(4000)
+  /// 画布高（cm）
+  height        Int      @default(3000)
+  /// 吸附网格（cm）
+  gridSize      Int      @default(20)
+  /// 底图文件键（UPLOAD_DIR 内相对路径）
+  backgroundKey String?
+  /// { schemaVersion, background?, elements: (Wall|Door|Label|Furniture)[] }
+  decor         Json     @default("{\"schemaVersion\":1,\"elements\":[]}")
+  /// 布局乐观锁：每次布局保存 +1
+  version       Int      @default(1)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  zones Zone[]
+  seats Seat[]
+
+  @@unique([officeId, name])
+  @@schema("employee_seats")
+}
+
+/// 部门：只为颜色稳定与筛选；导入时自动创建。
+model Department {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  color     String
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  employees Employee[]
+  zones     Zone[]
+
+  @@schema("employee_seats")
+}
+
+/// 区域：楼层上按部门着淡色的一块
+model Zone {
+  id           String      @id @default(cuid())
+  floorId      String
+  floor        Floor       @relation(fields: [floorId], references: [id], onDelete: Cascade)
+  name         String
+  departmentId String?
+  department   Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  /// 覆盖部门颜色（可空）
+  color        String?
+  /// { type: "rect", x, y, w, h, rotation } | { type: "polygon", points: [[x,y],…] }
+  geometry     Json
+  sortOrder    Int         @default(0)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  seats Seat[]
+
+  @@index([floorId])
+  @@schema("employee_seats")
+}
+
+/// 花名册（由导入 / 手工维护，不由 SSO 自动创建）
+model Employee {
+  id           String      @id @default(cuid())
+  /// 工号，按导入原样（如 z84412632）
+  employeeNo   String
+  /// 工号匹配键（数字段），身份键
+  employeeKey  String      @unique
+  name         String
+  departmentId String?
+  department   Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  team         String      @default("")
+  title        String      @default("")
+  email        String      @default("")
+  phone        String      @default("")
+  note         String      @default("")
+  isActive     Boolean     @default(true)
+  leftAt       DateTime?
+  /// 关联的登录账号（按工号在登录/导入时挂上）
+  userId       String?     @unique
+  user         User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  seat Seat?
+
+  @@index([name])
+  @@index([departmentId])
+  @@index([employeeNo])
+  @@schema("employee_seats")
+}
+
+/// 座位：几何 + 当前占用者。编号在楼层内唯一；一人一座（employeeId 唯一）。
+model Seat {
+  id         String     @id @default(cuid())
+  floorId    String
+  floor      Floor      @relation(fields: [floorId], references: [id], onDelete: Cascade)
+  /// 冗余，便于按办公室查询/约束
+  officeId   String
+  office     Office     @relation(fields: [officeId], references: [id], onDelete: Cascade)
+  zoneId     String?
+  zone       Zone?      @relation(fields: [zoneId], references: [id], onDelete: SetNull)
+  code       String
+  x          Float
+  y          Float
+  w          Float      @default(120)
+  h          Float      @default(60)
+  rotation   Float      @default(0)
+  status     SeatStatus @default(ACTIVE)
+  note       String     @default("")
+  employeeId String?    @unique
+  employee   Employee?  @relation(fields: [employeeId], references: [id], onDelete: SetNull)
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+
+  @@unique([floorId, code])
+  @@index([officeId, code])
+  @@index([floorId])
+  @@schema("employee_seats")
+}
+
+/// 办公室级授权：EDITOR（分配座位）/ MANAGER（编辑布局、导入、授 EDITOR）
+model OfficePermission {
+  userId      String
+  user        User       @relation("GrantHolder", fields: [userId], references: [id], onDelete: Cascade)
+  officeId    String
+  office      Office     @relation(fields: [officeId], references: [id], onDelete: Cascade)
+  role        OfficeRole
+  grantedById String?
+  grantedBy   User?      @relation("GrantGiver", fields: [grantedById], references: [id], onDelete: SetNull)
+  createdAt   DateTime   @default(now())
+
+  @@id([userId, officeId])
+  @@index([officeId])
+  @@schema("employee_seats")
+}
+
+/// 审计日志：谁 / 何时 / 对什么 / 改了什么
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String?
+  actor      User?    @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  actorW3Id  String
+  actorName  String
+  /// seat.assign | seat.release | seat.move | seat.swap | layout.save | import.apply | employee.* | permission.* | user.role | office.* | floor.*
+  action     String
+  targetType String
+  targetId   String?
+  officeId   String?
+  floorId    String?
+  before     Json?
+  after      Json?
+  summary    String
+  /// 同一次导入 / 同一次布局保存共享一个 batchId
+  batchId    String?
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([officeId, createdAt])
+  @@index([targetType, targetId])
+  @@index([batchId])
+  @@schema("employee_seats")
+}

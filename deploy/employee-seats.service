@@ -1,0 +1,36 @@
+# systemd 单元：座位图（employee-seats）Next.js 应用，子路径 /seats，端口 3200
+#
+# 安装：
+#   sudo cp deploy/employee-seats.service /etc/systemd/system/employee-seats.service
+#   # 改下面三处本机相关的行：User/Group、WorkingDirectory、ExecStart 里的 node 路径（`which node`）
+#   sudo systemctl daemon-reload && sudo systemctl enable --now employee-seats
+# 日志：journalctl -u employee-seats -f
+#
+# 需要先构建：NEXT_BASE_PATH=/seats pnpm build（.env 在 WorkingDirectory 下，next 会自动加载）
+[Unit]
+Description=Employee seat map (employee-seats) Next.js app under /seats
+After=network.target postgresql.service
+
+[Service]
+Type=simple
+User=eason
+Group=eason
+WorkingDirectory=/opt/cari_projects/employee-seats
+Environment=NODE_ENV=production
+# 运行时和构建时都要有，basePath 才一致
+Environment=NEXT_BASE_PATH=/seats
+# 内网 CA（uniportal 证书 / 代理重签）：必须放在这里而不是 .env —— Node 在读 .env 之前就建好了信任库
+# Environment=NODE_EXTRA_CA_CERTS=/etc/ssl/certs/huawei-ca-bundle.pem
+# 直接调用 node（避开 pnpm 的 `--` 透传问题）。保留完整命令：<node> node_modules/next/dist/bin/next start …
+ExecStart=/home/eason/.nvm/versions/node/v24.19.0/bin/node node_modules/next/dist/bin/next start -p 3200 -H 127.0.0.1
+Restart=on-failure
+RestartSec=3
+LimitNOFILE=65535
+TasksMax=512
+# 部署时最多等 20s 让在途请求结束，避免 systemctl restart 变成一分半的 502
+TimeoutStopSec=20
+KillMode=mixed
+Environment=UV_THREADPOOL_SIZE=8
+
+[Install]
+WantedBy=multi-user.target
