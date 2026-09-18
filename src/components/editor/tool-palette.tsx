@@ -16,10 +16,8 @@ import {
   Type,
   Undo2,
 } from "lucide-react";
-import { CATALOG, CATEGORY_LABELS, type ObjectCategory } from "@/lib/map/catalog";
 import { redo, undo, useEditorStore, type Tool } from "@/stores/editor-store";
 import { cn } from "@/lib/cn";
-import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 const TOOLS: { key: Tool; label: string; hint: string; icon: typeof MousePointer2 }[] = [
@@ -30,19 +28,19 @@ const TOOLS: { key: Tool; label: string; hint: string; icon: typeof MousePointer
   { key: "wall", label: "墙体", hint: "W", icon: PenLine },
   { key: "door", label: "门", hint: "D", icon: DoorOpen },
   { key: "label", label: "文字", hint: "T", icon: Type },
-  { key: "furniture", label: "家具 / 房间", hint: "F", icon: Sofa },
+  { key: "furniture", label: "物件", hint: "F", icon: Sofa },
   { key: "image", label: "底图", hint: "B", icon: ImageIcon },
 ];
 
 export function ToolPalette({
-  furnitureType,
-  onFurnitureType,
+  libraryOpen,
+  onToggleLibrary,
   showGrid,
   onToggleGrid,
   onArray,
 }: {
-  furnitureType: string;
-  onFurnitureType: (t: string) => void;
+  libraryOpen: boolean;
+  onToggleLibrary: () => void;
   showGrid: boolean;
   onToggleGrid: () => void;
   onArray: () => void;
@@ -60,10 +58,13 @@ export function ToolPalette({
             <TooltipTrigger asChild>
               <button
                 type="button"
-                onClick={() => setTool(key)}
+                onClick={() => {
+                  if (key === "furniture") onToggleLibrary();
+                  else setTool(key);
+                }}
                 className={cn(
                   "flex h-9 w-9 items-center justify-center rounded-lg transition",
-                  tool === key ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                  (key === "furniture" ? libraryOpen : tool === key) ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground",
                 )}
                 aria-label={label}
               >
@@ -75,25 +76,7 @@ export function ToolPalette({
             </TooltipContent>
           </Tooltip>
         ))}
-        {tool === "furniture" && (
-          <Select value={furnitureType} onValueChange={onFurnitureType}>
-            <SelectTrigger className="h-8 w-9 justify-center px-0 text-[10px] [&>svg]:hidden">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent side="right" align="start" className="max-h-96">
-              {(Object.keys(CATEGORY_LABELS) as ObjectCategory[]).map((cat) => (
-                <SelectGroup key={cat}>
-                  <SelectLabel>{CATEGORY_LABELS[cat]}</SelectLabel>
-                  {CATALOG.filter((d) => d.category === cat).map((d) => (
-                    <SelectItem key={d.key} value={d.key}>
-                      {d.name}
-                    </SelectItem>
-                  ))}
-                </SelectGroup>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
+
         <div className="my-0.5 h-px bg-border" />
         <Tooltip>
           <TooltipTrigger asChild>

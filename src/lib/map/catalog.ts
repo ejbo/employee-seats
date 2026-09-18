@@ -1,3 +1,4 @@
+import type { SeatStyle } from "./types";
 /**
  * 内置物件库。尺寸单位 cm（w = 宽，d = 深/高度方向在平面上的长度，h = 高）。
  * 3D 规格先用程序化占位盒，B 阶段替换为精细模型 / glTF。
@@ -96,3 +97,18 @@ export const CATALOG_BY_KEY: Record<string, ObjectDef> = Object.fromEntries(CATA
 export function catalogDef(typeKey: string): ObjectDef {
   return CATALOG_BY_KEY[typeKey] ?? CATALOG_BY_KEY.custom;
 }
+
+/** 物件库里的工位预设（放置的是座位，不是物件） */
+export interface SeatPreset {
+  style: SeatStyle;
+  name: string;
+  w: number;
+  h: number;
+}
+export const SEAT_PRESETS: SeatPreset[] = [
+  { style: "desk-basic", name: "直桌工位", w: 120, h: 60 },
+  { style: "desk-l", name: "L 形工位（右）", w: 160, h: 120 },
+  { style: "desk-l-left", name: "L 形工位（左）", w: 160, h: 120 },
+  { style: "bench", name: "长条工位", w: 140, h: 70 },
+];
+export const SEAT_PRESET_BY_STYLE: Record<SeatStyle, SeatPreset> = Object.fromEntries(SEAT_PRESETS.map((p) => [p.style, p])) as Record<SeatStyle, SeatPreset>;

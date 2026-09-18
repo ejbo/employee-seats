@@ -11,6 +11,10 @@ import { EditorCanvas } from "./editor-canvas";
 import { ToolPalette } from "./tool-palette";
 import { PropertiesPanel } from "./properties-panel";
 import { SeatArrayDialog } from "./seat-array-dialog";
+import { LibraryPanel, type Placement } from "./library-panel";
+import { RenumberDialog } from "./renumber-dialog";
+import { FillRoomDialog } from "./fill-room-dialog";
+import type { SeatEl } from "@/lib/map/types";
 
 export function FloorEditor({
   payload,
@@ -23,9 +27,13 @@ export function FloorEditor({
 }) {
   const floorId = payload.scene.floor.id;
   const hydratedFloorId = useEditorStore((s) => s.floorId);
-  const [furnitureType, setFurnitureType] = useState<string>("desk-straight");
+  const [placement, setPlacement] = useState<Placement>({ kind: "object", typeKey: "desk-straight" });
+  const [libraryOpen, setLibraryOpen] = useState(false);
   const [showGrid, setShowGrid] = useState(true);
   const [arrayOpen, setArrayOpen] = useState(false);
+  const [renumberIds, setRenumberIds] = useState<string[] | null>(null);
+  const [fillRoomId, setFillRoomId] = useState<string | null>(null);
+  const [previewSeats, setPreviewSeats] = useState<SeatEl[] | null>(null);
 
   // 进入编辑器：把当前场景灌进 store（切换楼层时重新灌）
   useEffect(() => {
@@ -56,22 +64,39 @@ export function FloorEditor({
       <EditorCanvas
         employees={payload.scene.employees}
         departments={payload.scene.departments}
-        furnitureType={furnitureType}
+        furnitureType={placement.kind === "object" ? placement.typeKey : "desk-straight"}
+        seatStyle={placement.kind === "seat" ? placement.style : "desk-basic"}
         showGrid={showGrid}
         onToggleGrid={() => setShowGrid((g) => !g)}
+        onToggleLibrary={() => setLibraryOpen((o) => !o)}
         onSaveNow={saveNow}
+        onRenumber={setRenumberIds}
+        onFillRoom={setFillRoomId}
+        previewSeats={previewSeats}
         svgRef={svgRef}
       />
       <ToolPalette
-        furnitureType={furnitureType}
-        onFurnitureType={setFurnitureType}
+        libraryOpen={libraryOpen}
+        onToggleLibrary={() => setLibraryOpen((o) => !o)}
         showGrid={showGrid}
         onToggleGrid={() => setShowGrid((g) => !g)}
         onArray={() => setArrayOpen(true)}
       />
+      {libraryOpen && (
+        <LibraryPanel
+          placement={placement}
+          onPick={(p) => {
+            setPlacement(p);
+            useEditorStore.getState().setTool(p.kind === "seat" ? "seat" : "furniture");
+          }}
+          onClose={() => setLibraryOpen(false)}
+        />
+      )}
       <PropertiesPanel departments={payload.scene.departments} floorId={floorId} />
       <SaveStatusPill onSaveNow={saveNow} />
       <SeatArrayDialog open={arrayOpen} onOpenChange={setArrayOpen} />
+      <RenumberDialog open={renumberIds !== null} onOpenChange={(o) => !o && setRenumberIds(null)} seatIds={renumberIds ?? []} />
+      <FillRoomDialog open={fillRoomId !== null} onOpenChange={(o) => !o && setFillRoomId(null)} roomId={fillRoomId} onPreview={setPreviewSeats} />
 
       <Dialog open={conflict !== null}>
         <DialogContent hideClose className="max-w-md">

@@ -62,11 +62,14 @@ export function RoomFloors({
   rooms,
   k,
   selectedIds,
+  invalidIds,
   wrap,
 }: {
   rooms: RoomEl[];
   k: number;
   selectedIds?: Set<string>;
+  /** 与其他房间重叠（拖拽预览变红） */
+  invalidIds?: Set<string>;
   wrap?: (room: RoomEl, node: React.ReactNode) => React.ReactNode;
 }) {
   return (
@@ -74,10 +77,11 @@ export function RoomFloors({
       {rooms.map((room) => {
         const pts = room.points.map((p) => p.join(",")).join(" ");
         const selected = selectedIds?.has(room.id);
+        const invalid = invalidIds?.has(room.id);
         const pattern = room.type === "restroom" || room.type === "storage" ? "url(#room-hatch)" : room.type === "stairs" ? "url(#room-stripes)" : null;
         const node = (
           <g key={room.id} data-room-id={room.id}>
-            <polygon points={pts} fill={ROOM_FILL[room.type]} stroke={selected ? "var(--info)" : "none"} strokeWidth={selected ? 3 / k : 0} />
+            <polygon points={pts} fill={invalid ? "var(--danger)" : ROOM_FILL[room.type]} fillOpacity={invalid ? 0.25 : 1} stroke={invalid ? "var(--danger)" : selected ? "var(--info)" : "none"} strokeWidth={selected || invalid ? 3 / k : 0} />
             {pattern && <polygon points={pts} fill={pattern} style={{ pointerEvents: "none" }} />}
             {room.type === "elevator" && room.points.length >= 4 && (
               <g style={{ pointerEvents: "none" }} stroke="var(--bp-line)" strokeWidth={1.5 / k} opacity={0.5}>

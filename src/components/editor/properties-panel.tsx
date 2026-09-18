@@ -8,6 +8,7 @@ import { DEFAULT_WALL_HEIGHT, FLOOR_STYLE_LABELS, ROOM_TYPE_LABELS, SEAT_STYLE_L
 import { CATALOG, CATEGORY_LABELS, catalogDef, type ObjectCategory } from "@/lib/map/catalog";
 import { polygonArea, polygonBounds } from "@/lib/map/rectilinear";
 import { resolveDoor } from "@/lib/map/doors";
+import { zoneFromRoom } from "@/lib/map/rooms";
 import { DEPARTMENT_PALETTE } from "@/lib/map/colors";
 import { SEAT_STATUS_LABELS } from "@/lib/labels";
 import { api, ApiClientError } from "@/lib/api-client";
@@ -435,8 +436,59 @@ function MultiProps({ els, departments }: { els: MapElement[]; departments: Reco
           {els.length - seats.length > 0 && `${seats.length > 0 ? "，" : ""}${els.length - seats.length} 个其他元素`}
         </p>
       </Section>
+      {(seats.length > 0 || els.some((e) => e.kind === "furniture")) && (
+        <Section title="批量几何">
+          <Row label="旋转">
+            <NumInput value={0} step={15} suffix="°" onChange={(v) => patchMany(ids, (e) => (e.kind === "seat" || e.kind === "furniture" || e.kind === "label" ? { ...e, rotation: ((v % 360) + 360) % 360 } : e))} />
+          </Row>
+          <Row label="宽 × 高">
+            <div className="flex gap-1">
+              <NumInput value={0} min={10} suffix="cm" onChange={(v) => v >= 10 && patchMany(ids, (e) => (e.kind === "seat" || e.kind === "furniture" ? { ...e, w: v } : e))} />
+              <NumInput value={0} min={10} suffix="cm" onChange={(v) => v >= 10 && patchMany(ids, (e) => (e.kind === "seat" || e.kind === "furniture" ? { ...e, h: v } : e))} />
+            </div>
+          </Row>
+          <p className="text-[11px] text-muted-foreground">输入后应用到所有选中的座位 / 物件。</p>
+        </Section>
+      )}
+      {els.some((e) => e.kind === "furniture") && (
+        <Section title="批量设置物件">
+          <Row label="类型">
+            <Select onValueChange={(v) => patchMany(ids, (e) => (e.kind === "furniture" ? { ...e, typeKey: v } : e))}>
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue placeholder="选择…" />
+              </SelectTrigger>
+              <SelectContent className="max-h-80">
+                {(Object.keys(CATEGORY_LABELS) as ObjectCategory[]).map((cat) => (
+                  <SelectGroup key={cat}>
+                    <SelectLabel>{CATEGORY_LABELS[cat]}</SelectLabel>
+                    {CATALOG.filter((d) => d.category === cat).map((d) => (
+                      <SelectItem key={d.key} value={d.key}>
+                        {d.name}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                ))}
+              </SelectContent>
+            </Select>
+          </Row>
+        </Section>
+      )}
       {seats.length > 0 && (
         <Section title="批量设置座位">
+          <Row label="桌型">
+            <Select onValueChange={(v) => patchMany(seats.map((s) => s.id), (e) => (e.kind === "seat" ? { ...e, style: v as SeatStyle } : e))}>
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue placeholder="选择…" />
+              </SelectTrigger>
+              <SelectContent>
+                {(Object.keys(SEAT_STYLE_LABELS) as SeatStyle[]).map((k) => (
+                  <SelectItem key={k} value={k}>
+                    {SEAT_STYLE_LABELS[k]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Row>
           <Row label="状态">
             <Select onValueChange={(v) => patchMany(seats.map((s) => s.id), (e) => (e.kind === "seat" ? { ...e, status: v as SeatStatus } : e))}>
               <SelectTrigger className="h-8 text-xs">
@@ -491,10 +543,25 @@ function MultiProps({ els, departments }: { els: MapElement[]; departments: Reco
 function RoomProps({ el, set }: { el: RoomEl; set: (changes: Partial<RoomEl>) => void }) {
   const b = polygonBounds(el.points);
   const area = polygonArea(el.points) / 10000;
+  const lastCreatedId = useEditorStore((s) => s.lastCreatedId);
+  const setTool = useEditorStore((s) => s.setTool);
+  const add = useEditorStore((s) => s.add);
+  const elements = useEditorStore((s) => s.elements);
   return (
     <Section title="房间">
       <Row label="名称">
-        <Input value={el.name} placeholder={ROOM_TYPE_LABELS[el.type]} onChange={(e) => set({ name: e.target.value })} className="h-8 text-xs" />
+        <Input
+          key={el.id}
+          autoFocus={lastCreatedId === el.id}
+          onFocus={(e) => e.currentTarget.select()}
+          value={el.name}
+          placeholder={ROOM_TYPE_LABELS[el.type]}
+          onChange={(e) => set({ name: e.target.value })}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === "Escape") e.currentTarget.blur();
+          }}
+          className="h-8 text-xs"
+        />
       </Row>
       <Row label="类型">
         <Select value={el.type} onValueChange={(v) => set({ type: v as RoomEl["type"] })}>
@@ -532,6 +599,23 @@ function RoomProps({ el, set }: { el: RoomEl; set: (changes: Partial<RoomEl>) =>
         {(b.w / 100).toFixed(2)} × {(b.h / 100).toFixed(2)} m · {area.toFixed(1)} m² · {el.points.length} 个顶点
         {el.type === "corridor" ? " · 走廊不生成墙" : ""}
       </p>
+      <div className="flex gap-2">
+        <Button variant="outline" size="sm" className="flex-1" onClick={() => setTool("room-add")} title="在房间上再拖一个矩形并入（A）">
+          ＋ 添加形状
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          className="flex-1"
+          onClick={() => {
+            const count = Object.values(elements).filter((e) => e.kind === "zone").length;
+            add(zoneFromRoom(el, count));
+            toast.success("已按房间轮廓创建部门区域");
+          }}
+        >
+          设为部门区域
+        </Button>
+      </div>
     </Section>
   );
 }

@@ -3,7 +3,7 @@ import { temporal } from "zundo";
 import type { LayoutSnapshot } from "@/lib/map/diff";
 import type { FloorScene, MapElement } from "@/lib/map/types";
 
-export type Tool = "select" | "seat" | "room" | "zone" | "wall" | "door" | "label" | "furniture" | "image";
+export type Tool = "select" | "seat" | "room" | "room-add" | "zone" | "wall" | "door" | "label" | "furniture" | "image";
 export type SaveStatus = "saved" | "dirty" | "saving" | "conflict" | "error";
 
 export interface EditorState extends LayoutSnapshot {
@@ -13,6 +13,8 @@ export interface EditorState extends LayoutSnapshot {
   tool: Tool;
   selection: string[];
   saveStatus: SaveStatus;
+  /** 最近一次单个新建的元素（属性面板据此自动聚焦名称输入） */
+  lastCreatedId: string | null;
 
   hydrate: (scene: FloorScene) => void;
   setTool: (tool: Tool) => void;
@@ -67,6 +69,7 @@ export const useEditorStore = create<EditorState>()(
       tool: "select",
       selection: [],
       saveStatus: "saved",
+      lastCreatedId: null,
 
       hydrate: (scene) => {
         const snap = snapshotFromScene(scene);
@@ -78,7 +81,8 @@ export const useEditorStore = create<EditorState>()(
         set({ ...snap, baseVersion: scene.floor.version, lastSaved: snap, selection: [], saveStatus: "saved" });
         useEditorStore.temporal.getState().clear();
       },
-      setTool: (tool) => set({ tool, selection: tool === "select" ? get().selection : [] }),
+      // 「添加形状」需要保留选中的房间；其他绘制工具切换时清空选区
+      setTool: (tool) => set({ tool, selection: tool === "select" || tool === "room-add" ? get().selection : [] }),
       select: (ids, additive = false) =>
         set((s) => {
           if (!additive) return { selection: ids };
@@ -99,7 +103,7 @@ export const useEditorStore = create<EditorState>()(
             elements[el.id] = el;
             if (isDecor(el) && !order.includes(el.id)) order.push(el.id);
           }
-          return { elements, order, saveStatus: "dirty", ...(options?.select === false ? {} : { selection: els.map((e) => e.id) }) };
+          return { elements, order, saveStatus: "dirty", lastCreatedId: els.length === 1 ? els[0].id : null, ...(options?.select === false ? {} : { selection: els.map((e) => e.id) }) };
         }),
       update: (id, changes) =>
         set((s) => {
