@@ -4,6 +4,7 @@ import type { SeatStyle } from "./types";
  * 3D 规格先用程序化占位盒，B 阶段替换为精细模型 / glTF。
  */
 import { boxSpec, type ObjectSpec } from "./object-spec";
+import { PROP_SPECS } from "./object-specs";
 
 export type ObjectCategory = "desk" | "seating" | "table" | "storage" | "office" | "kitchen" | "decor" | "partition";
 export type GlyphKind =
@@ -93,6 +94,13 @@ export const CATALOG: ObjectDef[] = [
 ];
 
 export const CATALOG_BY_KEY: Record<string, ObjectDef> = Object.fromEntries(CATALOG.map((d) => [d.key, d]));
+
+/** 物件的 3D 规格：优先用精细规格，没有则用占位盒。 */
+export function specFor(def: ObjectDef): ObjectSpec {
+  const rich = PROP_SPECS[def.key];
+  if (rich) return rich;
+  return def.model.kind === "procedural" ? def.model.spec : boxSpec(def.key, def.w, def.d, def.h, "$desk");
+}
 
 export function catalogDef(typeKey: string): ObjectDef {
   return CATALOG_BY_KEY[typeKey] ?? CATALOG_BY_KEY.custom;

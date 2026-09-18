@@ -4,10 +4,21 @@ export interface Palette3D {
   floor: string;
   grid: string;
   wall: string;
+  wallCap: string;
+  frame: string;
+  doorLeaf: string;
   desk: string;
   deskEdge: string;
   chair: string;
   monitor: string;
+  screenOn: string;
+  reservedDesk: string;
+  metal: string;
+  leaf: string;
+  pot: string;
+  wood: string;
+  fabric: string;
+  glass: string;
   room: string;
   roomEdge: string;
   text: string;
@@ -29,11 +40,22 @@ export function readPalette(): Palette3D {
     canvas: cssVar("--map-canvas", "#f3f3f5"),
     floor: cssVar("--map-floor", "#ffffff"),
     grid: cssVar("--map-grid", "#e4e4e8"),
-    wall: cssVar("--map-wall", "#3f3f46"),
+    wall: isDark ? "#c9c9d2" : "#3f3f46",
+    wallCap: isDark ? "#e2e2ea" : "#5a5a63",
+    frame: isDark ? "#8f8f99" : "#2f2f36",
+    doorLeaf: isDark ? "#4a3d33" : "#c9a97e",
     desk: isDark ? "#2a2a31" : "#f4efe7",
     deskEdge: isDark ? "#3c3c45" : "#d9d2c6",
     chair: isDark ? "#3a3a44" : "#c9c9d1",
     monitor: isDark ? "#0f0f12" : "#2a2a31",
+    screenOn: isDark ? "#7fb6ff" : "#dbe9ff",
+    reservedDesk: isDark ? "#3a3226" : "#f3e3c2",
+    metal: isDark ? "#55555f" : "#9a9aa4",
+    leaf: isDark ? "#3f6b46" : "#6fae74",
+    pot: isDark ? "#4a3a30" : "#b08968",
+    wood: isDark ? "#4a3b2e" : "#c9a97e",
+    fabric: isDark ? "#3b4250" : "#8fa0b8",
+    glass: isDark ? "#7fa2c4" : "#bcd7ee",
     room: isDark ? "#1c1c22" : "#f7f7f8",
     roomEdge: isDark ? "#3a3a44" : "#c9c9d1",
     text: cssVar("--seat-text", "#18181b"),
