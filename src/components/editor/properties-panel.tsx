@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { toast } from "sonner";
-import { Check, ImagePlus, Loader2, Lock, Trash2, Unlock } from "lucide-react";
+import { Check, ImagePlus, Loader2, Lock, Trash2, Unlock, Wand2 } from "lucide-react";
 import type { DepartmentSummary, MapElement, RoomEl, SeatEl, SeatStatus, SeatStyle, ZoneEl } from "@/lib/map/types";
 import { DEFAULT_WALL_HEIGHT, FLOOR_STYLE_LABELS, ROOM_TYPE_LABELS, SEAT_STYLE_LABELS } from "@/lib/map/types";
 import { CATALOG, CATEGORY_LABELS, catalogDef, type ObjectCategory } from "@/lib/map/catalog";
@@ -15,6 +15,7 @@ import { api, ApiClientError } from "@/lib/api-client";
 import { errorMessage } from "@/lib/labels";
 import { withBasePath } from "@/lib/base-path";
 import { useEditorStore } from "@/stores/editor-store";
+import { useEditorUiStore } from "@/stores/editor-ui-store";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -118,6 +119,10 @@ function FloorProps({ floorId }: { floorId: string }) {
       </Section>
       <Section title="底图">
         <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={(e) => e.target.files?.[0] && void upload(e.target.files[0])} />
+        <Button variant="default" size="sm" className="w-full" onClick={() => useEditorUiStore.getState().setFloorplanWizardOpen(true)}>
+          <Wand2 className="h-3.5 w-3.5" />
+          导入户型图（识别房间 / 墙 / 门）
+        </Button>
         {!meta.backgroundKey ? (
           <>
             <Button variant="outline" size="sm" className="w-full" disabled={uploading} onClick={() => fileRef.current?.click()}>

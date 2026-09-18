@@ -78,6 +78,16 @@ const schema = z
     // ── 权限引导：这些工号首次登录即为超级管理员 ──────────────────────────────
     SUPER_ADMIN_W3_IDS: list(),
 
+    // ── AI（户型图识别 / 照片生成物件；未配置时相关功能退化为手动）─────────────
+    // LLM_PROVIDER=anthropic（开发机，配 ANTHROPIC_API_KEY，公网需 LLM_USE_PROXY=true）
+    // LLM_PROVIDER=openai-compatible（内网网关 https://ai4news.rnd.huawei.com/model/v1，模型 zai-org/GLM-4.6V，直连）
+    LLM_PROVIDER: optStr(),
+    LLM_BASE_URL: optStr(),
+    LLM_API_KEY: optStr(),
+    LLM_MODEL: optStr(),
+    LLM_USE_PROXY: bool(),
+    ANTHROPIC_API_KEY: optStr(),
+
     // ── 文件与导入 ──────────────────────────────────────────────────────────
     UPLOAD_DIR: z.string().default("./storage"),
     MAX_UPLOAD_MB: num(20, 1),
