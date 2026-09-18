@@ -7,14 +7,17 @@ import type { DepartmentSummary, DoorAnchor, DoorEl, EmployeeSummary, MapElement
 import { DEFAULT_DOOR_WIDTH, DEFAULT_SEAT_SIZE } from "@/lib/map/types";
 import { angleFromCenter, boundsIntersect, elementBounds, nextSeatCode, normalizeAngle, rectTransform, resizeRect, snap, type Bounds, type Handle } from "@/lib/map/geometry";
 import { centerOf, pointsOf, rectOf, rotationOf, translateEl, withRect, withRotation, withVertexAt, type TransformCtx } from "@/lib/map/transform";
-import { hostEdges, nearestHostEdge, resolveDoor, type DoorGeom } from "@/lib/map/doors";
+import { hostEdges, nearestHostEdge, resolveDoor } from "@/lib/map/doors";
+import { deriveWalls } from "@/lib/map/walls";
 import { rectToPoints } from "@/lib/map/rectilinear";
 import { catalogDef } from "@/lib/map/catalog";
 import { useViewport } from "@/hooks/use-viewport";
 import { redo, undo, useEditorStore, type Tool } from "@/stores/editor-store";
-import { withBasePath } from "@/lib/base-path";
 import { Button } from "@/components/ui/button";
-import { BlueprintDefs, DoorGlyph, LabelText, ObjectGlyph, RoomShape, SeatGlyph, WallPath, ZoneShape, type Lod } from "@/components/map2d/glyphs";
+import { BlueprintDefs, DoorGlyph, LabelText, ObjectGlyph, SeatGlyph, ZoneShape, type Lod } from "@/components/map2d/glyphs";
+import { BlueprintPaper, RoomFloors, RoomLabels, WallsAndDoors } from "@/components/map2d/blueprint-layers";
+import { Rulers, RULER_SIZE } from "./rulers";
+import { DimensionOverlay } from "./dimension-overlay";
 
 type Pt = { x: number; y: number };
 
@@ -42,7 +45,7 @@ interface Overlay {
 
 const EMPTY_OVERLAY: Overlay = { overrides: {}, marquee: null, draw: null, cursor: null, door: null };
 /** 工具栏在左、属性面板在右：适应窗口时避开它们 */
-const EDITOR_INSET = { left: 64, right: 340, top: 40, bottom: 0 };
+const EDITOR_INSET = { left: 64, right: 340, top: 40 + RULER_SIZE, bottom: 0 };
 const TOOL_KEYS: Record<string, Tool> = { v: "select", s: "seat", r: "room", z: "zone", w: "wall", d: "door", t: "label", f: "furniture", b: "image" };
 const MIN_ROOM = 100;
 
@@ -113,7 +116,6 @@ export function EditorCanvas({ employees, departments, furnitureType, showGrid, 
 
   const k = transform.k;
   const lod: Lod = k < 0.6 ? 0 : k < 1.1 ? 1 : 2;
-  const gridStep = k < 0.5 ? grid * 5 : grid;
   const handleSize = 9 / k;
 
   // 显示中的元素 = 已提交 + 拖拽中的临时覆盖；门的世界几何由宿主边解析
@@ -122,15 +124,8 @@ export function EditorCanvas({ employees, departments, furnitureType, showGrid, 
     [elements, overlay.overrides],
   );
   const displayEl = useCallback((id: string): MapElement | undefined => displayElements[id], [displayElements]);
-  const doorGeoms = useMemo(() => {
-    const m = new Map<string, DoorGeom>();
-    for (const el of Object.values(displayElements)) {
-      if (el.kind !== "door") continue;
-      const g = resolveDoor(el, (id) => displayElements[id]);
-      if (g) m.set(el.id, g);
-    }
-    return m;
-  }, [displayElements]);
+  const derived = useMemo(() => deriveWalls(Object.values(displayElements)), [displayElements]);
+  const doorGeoms = useMemo(() => new Map(derived.doors.map((g) => [g.id, g] as const)), [derived.doors]);
   const ctx = useMemo<TransformCtx>(() => ({ byId: displayEl, doorGeoms }), [displayEl, doorGeoms]);
   const edges = useMemo(() => (tool === "door" ? hostEdges(Object.values(elements)) : []), [elements, tool]);
 
@@ -516,8 +511,8 @@ export function EditorCanvas({ employees, departments, furnitureType, showGrid, 
     [elements],
   );
   const seats = useMemo(() => Object.values(elements).filter((el): el is SeatEl => el.kind === "seat"), [elements]);
-  const roomIds = useMemo(() => order.filter((id) => elements[id]?.kind === "room"), [elements, order]);
-  const decorIds = useMemo(() => order.filter((id) => elements[id] && elements[id].kind !== "room"), [elements, order]);
+  const displayRooms = useMemo(() => order.map((id) => displayElements[id]).filter((el): el is RoomEl => el?.kind === "room"), [displayElements, order]);
+  const decorIds = useMemo(() => order.filter((id) => elements[id] && elements[id].kind !== "room" && elements[id].kind !== "door"), [elements, order]);
   const selected = useMemo(() => new Set(selection), [selection]);
   const single = selection.length === 1 ? displayEl(selection[0]) : undefined;
   const singleRect = single ? rectOf(single) : null;
@@ -548,37 +543,30 @@ export function EditorCanvas({ employees, departments, furnitureType, showGrid, 
     >
       <svg ref={svgRef} className="block h-full w-full" xmlns="http://www.w3.org/2000/svg">
         <defs>
-          <pattern id="editor-grid" width={gridStep} height={gridStep} patternUnits="userSpaceOnUse">
-            <circle cx={0} cy={0} r={(1.2 / Math.max(0.3, k)) * 0.8} fill="var(--map-grid)" />
-          </pattern>
           <BlueprintDefs k={k} />
         </defs>
         <g data-map-root transform={`translate(${transform.x} ${transform.y}) scale(${k})`}>
-          <rect x={0} y={0} width={meta.width} height={meta.height} fill="var(--bp-paper)" stroke="var(--border-strong)" strokeWidth={2 / k} />
-          {meta.backgroundKey && meta.background && (
-            <image
-              href={withBasePath(`/api/files/${meta.backgroundKey}`)}
-              x={meta.background.x}
-              y={meta.background.y}
-              width={meta.background.w}
-              height={meta.background.h}
-              opacity={meta.background.opacity}
-              preserveAspectRatio="none"
-              style={{ pointerEvents: "none" }}
-            />
-          )}
-          {showGrid && k >= 0.25 && <rect x={0} y={0} width={meta.width} height={meta.height} fill="url(#editor-grid)" style={{ pointerEvents: "none" }} />}
+          <BlueprintPaper
+            width={meta.width}
+            height={meta.height}
+            gridSize={grid}
+            k={k}
+            showGrid={showGrid}
+            background={meta.backgroundKey && meta.background ? { key: meta.backgroundKey, ...meta.background } : null}
+            idPrefix="editor"
+          />
 
           {/* 房间地面（最底层） */}
-          {roomIds.map((id) => {
-            const el = displayEl(id);
-            if (!el || el.kind !== "room") return null;
-            return (
-              <g key={id} data-id={id} className="cursor-move">
-                <RoomShape room={el} k={k} selected={selected.has(id)} interactive />
+          <RoomFloors
+            rooms={displayRooms}
+            k={k}
+            selectedIds={selected}
+            wrap={(room, node) => (
+              <g key={room.id} data-id={room.id} className="cursor-move">
+                {node}
               </g>
-            );
-          })}
+            )}
+          />
 
           {zones.map((z) => {
             const el = (displayEl(z.id) as ZoneEl) ?? z;
@@ -589,23 +577,30 @@ export function EditorCanvas({ employees, departments, furnitureType, showGrid, 
             );
           })}
 
+          {/* 墙（合并 path）+ 门 */}
+          <WallsAndDoors
+            derived={derived}
+            k={k}
+            selectedIds={selected}
+            wrapDoor={(id, node) => (
+              <g key={id} data-id={id} className="cursor-move">
+                {node}
+              </g>
+            )}
+          />
+
           {decorIds.map((id) => {
             const el = displayEl(id);
             if (!el) return null;
             const sel = selected.has(id);
             switch (el.kind) {
-              case "wall":
+              case "wall": {
+                // 墙本体已合并进 path；这里只放命中区域与选中高亮
+                const pts = el.points.map((p) => p.join(",")).join(" ");
                 return (
                   <g key={id} data-id={id} className="cursor-move">
-                    <WallPath wall={el} selected={sel} />
-                  </g>
-                );
-              case "door": {
-                const geom = doorGeoms.get(id);
-                if (!geom) return null;
-                return (
-                  <g key={id} data-id={id} className="cursor-move">
-                    <DoorGlyph geom={geom} selected={sel} k={k} />
+                    {sel && <polyline points={pts} fill="none" stroke="var(--info)" strokeOpacity={0.5} strokeWidth={el.thickness + 12} strokeLinejoin="round" strokeLinecap="round" />}
+                    <polyline points={pts} fill="none" stroke="transparent" strokeWidth={Math.max(el.thickness, 8 / k) + 8 / k} strokeLinejoin="round" strokeLinecap="square" />
                   </g>
                 );
               }
@@ -636,6 +631,8 @@ export function EditorCanvas({ employees, departments, furnitureType, showGrid, 
               </g>
             );
           })}
+
+          <RoomLabels rooms={displayRooms} k={k} />
 
           {/* 墙体草稿 */}
           {wallDraft.length > 0 && (
@@ -689,6 +686,7 @@ export function EditorCanvas({ employees, departments, furnitureType, showGrid, 
             const b = elementBounds(el, doorGeoms);
             return <rect key={id} x={b.x - 6} y={b.y - 6} width={b.w + 12} height={b.h + 12} fill="none" stroke="var(--info)" strokeWidth={1.5 / k} strokeDasharray={`${6 / k} ${4 / k}`} style={{ pointerEvents: "none" }} />;
           })}
+          {single && <DimensionOverlay el={single} k={k} />}
           {single && singleRect && (
             <g transform={rectTransform(singleRect.x, singleRect.y, singleRect.w, singleRect.h, singleRect.rotation)}>
               {(
@@ -733,6 +731,7 @@ export function EditorCanvas({ employees, departments, furnitureType, showGrid, 
           )}
         </g>
       </svg>
+      <Rulers transform={transform} size={size} containerRef={containerRef} />
 
       <div data-ui className="absolute bottom-3 left-3 flex flex-col gap-1 rounded-xl border border-border bg-surface/90 p-1 shadow-lift backdrop-blur">
         <Button variant="ghost" size="icon-sm" aria-label="放大" onClick={() => zoomBy(1.4)}>

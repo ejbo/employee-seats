@@ -9,8 +9,9 @@ import { useViewStore } from "@/stores/view-store";
 import { beginDragCandidate, useDragStore } from "@/stores/drag-store";
 import { Button } from "@/components/ui/button";
 import { SeatTooltip } from "@/components/floor/seat-tooltip";
-import { BlueprintDefs, DoorGlyph, LabelText, ObjectGlyph, RoomShape, SeatGlyph, WallPath, ZoneShape, type Lod } from "./glyphs";
-import { resolveDoor } from "@/lib/map/doors";
+import { BlueprintDefs, LabelText, ObjectGlyph, SeatGlyph, ZoneShape, type Lod } from "./glyphs";
+import { BlueprintPaper, RoomFloors, RoomLabels, WallsAndDoors } from "./blueprint-layers";
+import { deriveWalls } from "@/lib/map/walls";
 import type { RoomEl } from "@/lib/map/types";
 
 export interface FloorMap2DProps {
@@ -47,8 +48,9 @@ export function FloorMap2D({ scene, assignMode = false, onSeatClick, onBackgroun
 
   const { floor, seats, zones, decor, employees, departments } = scene;
   const floorBounds = useMemo(() => ({ x: 0, y: 0, w: floor.width, h: floor.height }), [floor.width, floor.height]);
-  const decorById = useMemo(() => new Map(decor.elements.map((el) => [el.id, el])), [decor.elements]);
   const rooms = useMemo(() => decor.elements.filter((el): el is RoomEl => el.kind === "room"), [decor.elements]);
+  const derived = useMemo(() => deriveWalls(decor.elements), [decor.elements]);
+  const background = floor.backgroundKey && decor.background ? { key: floor.backgroundKey, ...decor.background } : null;
 
   // 首次（或切换楼层）时把整层放进视口
   useEffect(() => {
@@ -71,8 +73,6 @@ export function FloorMap2D({ scene, assignMode = false, onSeatClick, onBackgroun
   }, [flyTo, seats, animateTo, size.w, size.h, setPulse]);
 
   const lod: Lod = transform.k < 0.6 ? 0 : transform.k < 1.1 ? 1 : 2;
-  const gridStep = transform.k < 0.5 ? floor.gridSize * 5 : floor.gridSize;
-  const showGrid = transform.k >= 0.25;
 
   const onPointerDown = useCallback(
     (e: React.PointerEvent) => {
@@ -180,35 +180,25 @@ export function FloorMap2D({ scene, assignMode = false, onSeatClick, onBackgroun
     >
       <svg ref={svgRef} className="block h-full w-full" xmlns="http://www.w3.org/2000/svg">
         <defs>
-          <pattern id="floor-grid" width={gridStep} height={gridStep} patternUnits="userSpaceOnUse">
-            <circle cx={0} cy={0} r={1.2 / Math.max(0.3, transform.k) * 0.8} fill="var(--map-grid)" />
-          </pattern>
           <BlueprintDefs k={transform.k} />
         </defs>
         <g data-map-root transform={`translate(${transform.x} ${transform.y}) scale(${transform.k})`}>
-          {/* 楼板 */}
-          <rect x={0} y={0} width={floor.width} height={floor.height} fill="var(--bp-paper)" stroke="var(--border-strong)" strokeWidth={2 / transform.k} />
-          {showGrid && <rect x={0} y={0} width={floor.width} height={floor.height} fill="url(#floor-grid)" style={{ pointerEvents: "none" }} />}
+          <BlueprintPaper width={floor.width} height={floor.height} gridSize={floor.gridSize} k={transform.k} showGrid background={background} idPrefix="view" />
 
-          {/* 房间 */}
-          {rooms.map((r) => (
-            <RoomShape key={r.id} room={r} k={transform.k} />
-          ))}
+          {/* 房间地面 */}
+          <RoomFloors rooms={rooms} k={transform.k} />
 
-          {/* 区域 */}
+          {/* 部门区域 */}
           {zones.map((z) => (
             <ZoneShape key={z.id} zone={z} departments={departments} dimmed={zoneDimmed(z.departmentId)} k={transform.k} />
           ))}
 
-          {/* 装饰：墙、门、家具、文字 */}
+          {/* 墙、门 */}
+          <WallsAndDoors derived={derived} k={transform.k} />
+
+          {/* 物件、文字 */}
           {decor.elements.map((el) => {
             switch (el.kind) {
-              case "wall":
-                return <WallPath key={el.id} wall={el} />;
-              case "door": {
-                const geom = resolveDoor(el, (id) => decorById.get(id));
-                return geom ? <DoorGlyph key={el.id} geom={geom} k={transform.k} /> : null;
-              }
               case "furniture":
                 return <ObjectGlyph key={el.id} item={el} lod={lod} k={transform.k} />;
               case "label":
@@ -237,6 +227,8 @@ export function FloorMap2D({ scene, assignMode = false, onSeatClick, onBackgroun
               />
             );
           })}
+
+          <RoomLabels rooms={rooms} k={transform.k} />
 
           {/* 定位脉冲 */}
           {pulseSeat && (

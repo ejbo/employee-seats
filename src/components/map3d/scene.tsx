@@ -5,11 +5,12 @@ import { Canvas, useThree } from "@react-three/fiber";
 import { CameraControls } from "@react-three/drei";
 import * as THREE from "three";
 import { Maximize2, Minus, Plus } from "lucide-react";
-import type { DoorEl, FloorScene, FurnitureEl, MapElement, RoomEl, SeatEl, WallEl, ZoneEl } from "@/lib/map/types";
-import { DEFAULT_WALL_HEIGHT, ROOM_TYPE_LABELS, WALL_THICKNESS, seatState } from "@/lib/map/types";
+import type { DoorEl, FloorScene, FurnitureEl, MapElement, RoomEl, SeatEl, ZoneEl } from "@/lib/map/types";
+import { ROOM_TYPE_LABELS, seatState } from "@/lib/map/types";
 import { catalogDef } from "@/lib/map/catalog";
 import { resolveDoor } from "@/lib/map/doors";
-import { polygonCentroid, roomEdges } from "@/lib/map/rectilinear";
+import { polygonCentroid } from "@/lib/map/rectilinear";
+import { deriveWalls, type DerivedWalls } from "@/lib/map/walls";
 import { NEUTRAL_ZONE_COLOR } from "@/lib/map/colors";
 import { shortName } from "@/lib/map/geometry";
 import { useViewStore } from "@/stores/view-store";
@@ -99,27 +100,26 @@ function ZonePatch({ zone, color, dimmed, p }: { zone: ZoneEl; color: string; di
 }
 
 // ── 墙 / 门 / 家具 ──────────────────────────────────────────────────────────
-function Wall({ wall, p }: { wall: WallEl; p: Palette3D }) {
-  const t = Math.max(0.05, wall.thickness * M);
-  const segs = useMemo(() => {
-    const out: { cx: number; cz: number; len: number; angle: number }[] = [];
-    for (let i = 0; i < wall.points.length - 1; i++) {
-      const [x1, y1] = wall.points[i];
-      const [x2, y2] = wall.points[i + 1];
-      const dx = (x2 - x1) * M;
-      const dz = (y2 - y1) * M;
-      out.push({ cx: ((x1 + x2) / 2) * M, cz: ((y1 + y2) / 2) * M, len: Math.hypot(dx, dz), angle: -Math.atan2(dz, dx) });
-    }
-    return out;
-  }, [wall.points]);
+/** 派生墙块：轴对齐块 + 斜墙段。 */
+function Walls({ derived, p }: { derived: DerivedWalls; p: Palette3D }) {
   return (
     <group>
-      {segs.map((s, i) => (
-        <mesh key={i} position={[s.cx, WALL_H / 2, s.cz]} rotation={[0, s.angle, 0]} castShadow receiveShadow>
-          <boxGeometry args={[s.len + t, WALL_H, t]} />
+      {derived.pieces.map((w, i) => (
+        <mesh key={i} position={[(w.x + w.w / 2) * M, WALL_H / 2, (w.y + w.h / 2) * M]} castShadow receiveShadow>
+          <boxGeometry args={[w.w * M, WALL_H, w.h * M]} />
           <meshStandardMaterial color={p.wall} roughness={0.8} />
         </mesh>
       ))}
+      {derived.diagonals.map((d) => {
+        const dx = (d.b[0] - d.a[0]) * M;
+        const dz = (d.b[1] - d.a[1]) * M;
+        return (
+          <mesh key={d.id} position={[((d.a[0] + d.b[0]) / 2) * M, WALL_H / 2, ((d.a[1] + d.b[1]) / 2) * M]} rotation={[0, -Math.atan2(dz, dx), 0]} castShadow receiveShadow>
+            <boxGeometry args={[Math.hypot(dx, dz) + d.thickness * M, WALL_H, d.thickness * M]} />
+            <meshStandardMaterial color={p.wall} roughness={0.8} />
+          </mesh>
+        );
+      })}
     </group>
   );
 }
@@ -160,7 +160,7 @@ function Door({ door, byId, p }: { door: DoorEl; byId: (id: string) => MapElemen
   );
 }
 
-/** 房间：地面色块 + 沿边的墙（走廊不生成墙）。A2 起由 deriveWalls 统一派生。 */
+/** 房间：地面色块 + 名称牌（墙由 deriveWalls 统一派生）。 */
 function Room({ room, p }: { room: RoomEl; p: Palette3D }) {
   const shape = useMemo(() => {
     const sh = new THREE.Shape();
@@ -168,30 +168,14 @@ function Room({ room, p }: { room: RoomEl; p: Palette3D }) {
     sh.closePath();
     return sh;
   }, [room.points]);
-  const edges = useMemo(() => roomEdges(room.points), [room.points]);
   const [cx, cy] = useMemo(() => polygonCentroid(room.points), [room.points]);
   const label = useMemo(() => labelTexture(room.name || ROOM_TYPE_LABELS[room.type], "", { fg: p.sub, sub: p.sub, bg: "rgba(0,0,0,0)" }), [room.name, room.type, p.sub]);
-  const wallH = Math.min(WALL_H, ((room.wallHeight ?? DEFAULT_WALL_HEIGHT) * M) || WALL_H);
-  const t = WALL_THICKNESS * M;
   return (
     <group>
       <mesh rotation={[Math.PI / 2, 0, 0]} position={[0, 0.004, 0]} receiveShadow>
         <shapeGeometry args={[shape]} />
         <meshStandardMaterial color={p.room} roughness={0.95} side={THREE.DoubleSide} />
       </mesh>
-      {room.type !== "corridor" &&
-        edges.map((e) => {
-          const len = Math.hypot(e.b[0] - e.a[0], e.b[1] - e.a[1]) * M;
-          const mx = ((e.a[0] + e.b[0]) / 2) * M;
-          const mz = ((e.a[1] + e.b[1]) / 2) * M;
-          const angle = -Math.atan2(e.b[1] - e.a[1], e.b[0] - e.a[0]);
-          return (
-            <mesh key={e.index} position={[mx, wallH / 2, mz]} rotation={[0, angle, 0]} castShadow receiveShadow>
-              <boxGeometry args={[len + t, wallH, t]} />
-              <meshStandardMaterial color={p.wall} roughness={0.8} />
-            </mesh>
-          );
-        })}
       <mesh position={[cx * M, 0.01, cy * M]} rotation={[-Math.PI / 2, 0, 0]}>
         <planeGeometry args={[2.4, 1.2]} />
         <meshBasicMaterial map={label} transparent depthWrite={false} />
@@ -392,6 +376,7 @@ export function Scene3D({ scene, onSeatClick }: { scene: FloorScene; onSeatClick
   const { floor, seats, zones, decor, employees, departments } = scene;
   const decorById = useMemo(() => new Map(decor.elements.map((el) => [el.id, el] as const)), [decor.elements]);
   const byId = useCallback((id: string) => decorById.get(id), [decorById]);
+  const derived = useMemo(() => deriveWalls(decor.elements), [decor.elements]);
   const zoneColor = (z: ZoneEl) => z.color ?? (z.departmentId ? departments[z.departmentId]?.color : undefined) ?? NEUTRAL_ZONE_COLOR;
   const hoveredSeat = hoveredSeatId ? seats.find((s) => s.id === hoveredSeatId) : null;
 
@@ -423,12 +408,11 @@ export function Scene3D({ scene, onSeatClick }: { scene: FloorScene; onSeatClick
         {zones.map((z) => (
           <ZonePatch key={z.id} zone={z} color={zoneColor(z)} dimmed={Boolean(highlightDeptId && z.departmentId !== highlightDeptId)} p={palette} />
         ))}
+        <Walls derived={derived} p={palette} />
         {decor.elements.map((el) => {
           switch (el.kind) {
             case "room":
               return <Room key={el.id} room={el} p={palette} />;
-            case "wall":
-              return <Wall key={el.id} wall={el} p={palette} />;
             case "door":
               return <Door key={el.id} door={el} byId={byId} p={palette} />;
             case "furniture":
