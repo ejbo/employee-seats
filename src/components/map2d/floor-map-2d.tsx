@@ -9,7 +9,9 @@ import { useViewStore } from "@/stores/view-store";
 import { beginDragCandidate, useDragStore } from "@/stores/drag-store";
 import { Button } from "@/components/ui/button";
 import { SeatTooltip } from "@/components/floor/seat-tooltip";
-import { DoorGlyph, FurnitureGlyph, LabelText, SeatGlyph, WallPath, ZoneShape, type Lod } from "./glyphs";
+import { BlueprintDefs, DoorGlyph, LabelText, ObjectGlyph, RoomShape, SeatGlyph, WallPath, ZoneShape, type Lod } from "./glyphs";
+import { resolveDoor } from "@/lib/map/doors";
+import type { RoomEl } from "@/lib/map/types";
 
 export interface FloorMap2DProps {
   scene: FloorScene;
@@ -45,6 +47,8 @@ export function FloorMap2D({ scene, assignMode = false, onSeatClick, onBackgroun
 
   const { floor, seats, zones, decor, employees, departments } = scene;
   const floorBounds = useMemo(() => ({ x: 0, y: 0, w: floor.width, h: floor.height }), [floor.width, floor.height]);
+  const decorById = useMemo(() => new Map(decor.elements.map((el) => [el.id, el])), [decor.elements]);
+  const rooms = useMemo(() => decor.elements.filter((el): el is RoomEl => el.kind === "room"), [decor.elements]);
 
   // 首次（或切换楼层）时把整层放进视口
   useEffect(() => {
@@ -179,14 +183,17 @@ export function FloorMap2D({ scene, assignMode = false, onSeatClick, onBackgroun
           <pattern id="floor-grid" width={gridStep} height={gridStep} patternUnits="userSpaceOnUse">
             <circle cx={0} cy={0} r={1.2 / Math.max(0.3, transform.k) * 0.8} fill="var(--map-grid)" />
           </pattern>
-          <pattern id="seat-hatch" width={8} height={8} patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
-            <line x1={0} y1={0} x2={0} y2={8} stroke="var(--seat-sub)" strokeOpacity={0.35} strokeWidth={2} />
-          </pattern>
+          <BlueprintDefs k={transform.k} />
         </defs>
         <g data-map-root transform={`translate(${transform.x} ${transform.y}) scale(${transform.k})`}>
           {/* 楼板 */}
-          <rect x={0} y={0} width={floor.width} height={floor.height} fill="var(--map-floor)" stroke="var(--border-strong)" strokeWidth={2 / transform.k} />
+          <rect x={0} y={0} width={floor.width} height={floor.height} fill="var(--bp-paper)" stroke="var(--border-strong)" strokeWidth={2 / transform.k} />
           {showGrid && <rect x={0} y={0} width={floor.width} height={floor.height} fill="url(#floor-grid)" style={{ pointerEvents: "none" }} />}
+
+          {/* 房间 */}
+          {rooms.map((r) => (
+            <RoomShape key={r.id} room={r} k={transform.k} />
+          ))}
 
           {/* 区域 */}
           {zones.map((z) => (
@@ -198,12 +205,16 @@ export function FloorMap2D({ scene, assignMode = false, onSeatClick, onBackgroun
             switch (el.kind) {
               case "wall":
                 return <WallPath key={el.id} wall={el} />;
-              case "door":
-                return <DoorGlyph key={el.id} door={el} />;
+              case "door": {
+                const geom = resolveDoor(el, (id) => decorById.get(id));
+                return geom ? <DoorGlyph key={el.id} geom={geom} k={transform.k} /> : null;
+              }
               case "furniture":
-                return <FurnitureGlyph key={el.id} item={el} lod={lod} k={transform.k} />;
+                return <ObjectGlyph key={el.id} item={el} lod={lod} k={transform.k} />;
               case "label":
                 return <LabelText key={el.id} label={el} />;
+              default:
+                return null;
             }
           })}
 

@@ -66,6 +66,7 @@ export function generateSeats(cfg: Cfg, existingCodes: Set<string>): { seats: Se
       status: "ACTIVE",
       note: "",
       employeeId: null,
+      style: "desk-basic",
     });
   }
   return { seats, conflicts };

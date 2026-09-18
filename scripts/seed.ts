@@ -10,6 +10,7 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { accountMatchKey } from "../src/lib/employee-key";
 import { paletteColor } from "../src/lib/map/colors";
 import type { FloorDecor, ZoneGeometry } from "../src/lib/map/types";
+import { rectToPoints } from "../src/lib/map/rectilinear";
 
 dotenv({ path: ".env.local", override: false });
 dotenv({ path: ".env", override: false });
@@ -76,9 +77,10 @@ const X0 = 300;
 const Y0 = 300;
 
 function buildDecor(width: number, height: number): FloorDecor {
-  const wallInset = 100;
+  const inset = 100;
+  const doorW = 90;
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     background: null,
     elements: [
       {
@@ -86,18 +88,20 @@ function buildDecor(width: number, height: number): FloorDecor {
         id: "wall-outer",
         thickness: 20,
         points: [
-          [wallInset, wallInset],
-          [width - wallInset, wallInset],
-          [width - wallInset, height - wallInset],
-          [wallInset, height - wallInset],
-          [wallInset, wallInset],
+          [inset, inset],
+          [width - inset, inset],
+          [width - inset, height - inset],
+          [inset, height - inset],
+          [inset, inset],
         ],
       },
-      { kind: "door", id: "door-main", x: width / 2 - 45, y: height - wallInset - 10, rotation: 0, w: 90, flip: false },
-      { kind: "furniture", id: "room-meeting", type: "meeting", x: width - 900, y: 300, rotation: 0, w: 700, h: 450, name: "会议室 A" },
-      { kind: "furniture", id: "room-pantry", type: "pantry", x: width - 900, y: 850, rotation: 0, w: 400, h: 300, name: "茶水间" },
-      { kind: "furniture", id: "printer-1", type: "printer", x: width - 400, y: 900, rotation: 0, w: 120, h: 80, name: "打印机" },
-      { kind: "furniture", id: "elevator-1", type: "elevator", x: width - 500, y: height - 500, rotation: 0, w: 300, h: 250, name: "电梯厅" },
+      { kind: "room", id: "room-meeting", name: "会议室 A", type: "meeting", points: rectToPoints(width - 900, 300, 700, 450), floorStyle: null, wallHeight: null },
+      { kind: "room", id: "room-pantry", name: "茶水间", type: "pantry", points: rectToPoints(width - 900, 850, 400, 300), floorStyle: null, wallHeight: null },
+      { kind: "room", id: "room-elevator", name: "电梯厅", type: "elevator", points: rectToPoints(width - 500, height - 500, 300, 250), floorStyle: null, wallHeight: null },
+      { kind: "furniture", id: "printer-1", typeKey: "printer", typeId: null, x: width - 400, y: 900, rotation: 0, w: 60, h: 60, name: "", flip: false },
+      { kind: "furniture", id: "plant-1", typeKey: "plant", typeId: null, x: width - 1000, y: 320, rotation: 0, w: 50, h: 50, name: "", flip: false },
+      // 底边墙段是外墙第 3 段（从右下角到左下角），门居中
+      { kind: "door", id: "door-main", anchor: { kind: "wall", wallId: "wall-outer", segIndex: 2 }, offset: width - inset - width / 2 - doorW / 2, w: doorW, swing: "in", hinge: "start" },
       { kind: "label", id: "label-entry", x: width / 2 - 100, y: height - 260, rotation: 0, text: "入口", fontSize: 32, color: null },
     ],
   };

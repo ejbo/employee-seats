@@ -3,8 +3,11 @@
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { Check, ImagePlus, Loader2, Lock, Trash2, Unlock } from "lucide-react";
-import type { DepartmentSummary, FurnitureType, MapElement, SeatEl, SeatStatus, ZoneEl } from "@/lib/map/types";
-import { FURNITURE_LABELS } from "@/lib/map/types";
+import type { DepartmentSummary, MapElement, RoomEl, SeatEl, SeatStatus, SeatStyle, ZoneEl } from "@/lib/map/types";
+import { DEFAULT_WALL_HEIGHT, FLOOR_STYLE_LABELS, ROOM_TYPE_LABELS, SEAT_STYLE_LABELS } from "@/lib/map/types";
+import { CATALOG, CATEGORY_LABELS, catalogDef, type ObjectCategory } from "@/lib/map/catalog";
+import { polygonArea, polygonBounds } from "@/lib/map/rectilinear";
+import { resolveDoor } from "@/lib/map/doors";
 import { DEPARTMENT_PALETTE } from "@/lib/map/colors";
 import { SEAT_STATUS_LABELS } from "@/lib/labels";
 import { api, ApiClientError } from "@/lib/api-client";
@@ -16,7 +19,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 export function PropertiesPanel({ departments, floorId }: { departments: Record<string, DepartmentSummary>; floorId: string }) {
   const selection = useEditorStore((s) => s.selection);
@@ -203,6 +206,20 @@ function ElementProps({ el, departments }: { el: MapElement; departments: Record
     <>
       {el.kind === "seat" && (
         <Section title="座位">
+          <Row label="桌型">
+            <Select value={el.style} onValueChange={(v) => set({ style: v as SeatStyle })}>
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {(Object.keys(SEAT_STYLE_LABELS) as SeatStyle[]).map((k) => (
+                  <SelectItem key={k} value={k}>
+                    {SEAT_STYLE_LABELS[k]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Row>
           <Row label="编号">
             <Input value={el.code} onChange={(e) => set({ code: e.target.value.toUpperCase() })} className="h-8 font-mono text-xs" />
           </Row>
@@ -301,24 +318,37 @@ function ElementProps({ el, departments }: { el: MapElement; departments: Record
         </Section>
       )}
 
+      {el.kind === "room" && <RoomProps el={el} set={set} />}
+
       {el.kind === "furniture" && (
-        <Section title="家具 / 房间">
+        <Section title="物件">
           <Row label="类型">
-            <Select value={el.type} onValueChange={(v) => set({ type: v as FurnitureType })}>
+            <Select value={el.typeKey} onValueChange={(v) => set({ typeKey: v })}>
               <SelectTrigger className="h-8 text-xs">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent>
-                {(Object.keys(FURNITURE_LABELS) as FurnitureType[]).map((t) => (
-                  <SelectItem key={t} value={t}>
-                    {FURNITURE_LABELS[t]}
-                  </SelectItem>
+              <SelectContent className="max-h-80">
+                {(Object.keys(CATEGORY_LABELS) as ObjectCategory[]).map((cat) => (
+                  <SelectGroup key={cat}>
+                    <SelectLabel>{CATEGORY_LABELS[cat]}</SelectLabel>
+                    {CATALOG.filter((d) => d.category === cat).map((d) => (
+                      <SelectItem key={d.key} value={d.key}>
+                        {d.name}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
                 ))}
               </SelectContent>
             </Select>
           </Row>
           <Row label="名称">
-            <Input value={el.name} placeholder={FURNITURE_LABELS[el.type]} onChange={(e) => set({ name: e.target.value })} className="h-8 text-xs" />
+            <Input value={el.name} placeholder={catalogDef(el.typeKey).name} onChange={(e) => set({ name: e.target.value })} className="h-8 text-xs" />
+          </Row>
+          <Row label="镜像">
+            <div className="flex items-center gap-2">
+              <Switch checked={el.flip} onCheckedChange={(v) => set({ flip: v })} />
+              <span className="text-xs text-muted-foreground">{el.flip ? "已左右翻转" : "默认朝向"}</span>
+            </div>
           </Row>
           {geometryRows}
         </Section>
@@ -355,25 +385,10 @@ function ElementProps({ el, departments }: { el: MapElement; departments: Record
         </Section>
       )}
 
-      {el.kind === "door" && (
-        <Section title="门">
-          <Row label="宽度">
-            <NumInput value={el.w} min={20} step={10} suffix="cm" onChange={(v) => set({ w: Math.max(20, v) })} />
-          </Row>
-          <Row label="开门方向">
-            <div className="flex items-center gap-2">
-              <Switch checked={el.flip} onCheckedChange={(v) => set({ flip: v })} />
-              <span className="text-xs text-muted-foreground">{el.flip ? "向下 / 反向" : "向上 / 正向"}</span>
-            </div>
-          </Row>
-          <Row label="旋转">
-            <NumInput value={el.rotation} step={90} onChange={(v) => set({ rotation: ((v % 360) + 360) % 360 })} suffix="°" />
-          </Row>
-        </Section>
-      )}
+      {el.kind === "door" && <DoorProps el={el} set={set} />}
 
       <Section title="操作">
-        {(el.kind === "wall" || el.kind === "door" || el.kind === "furniture" || el.kind === "label") && (
+        {(el.kind === "room" || el.kind === "wall" || el.kind === "door" || el.kind === "furniture" || el.kind === "label") && (
           <div className="flex gap-2">
             <Button variant="outline" size="sm" className="flex-1" onClick={() => reorder(el.id, "front")}>
               置顶
@@ -469,5 +484,85 @@ function MultiProps({ els, departments }: { els: MapElement[]; departments: Reco
         </Button>
       </Section>
     </>
+  );
+}
+
+// ── 房间 ──────────────────────────────────────────────────────────────────────
+function RoomProps({ el, set }: { el: RoomEl; set: (changes: Partial<RoomEl>) => void }) {
+  const b = polygonBounds(el.points);
+  const area = polygonArea(el.points) / 10000;
+  return (
+    <Section title="房间">
+      <Row label="名称">
+        <Input value={el.name} placeholder={ROOM_TYPE_LABELS[el.type]} onChange={(e) => set({ name: e.target.value })} className="h-8 text-xs" />
+      </Row>
+      <Row label="类型">
+        <Select value={el.type} onValueChange={(v) => set({ type: v as RoomEl["type"] })}>
+          <SelectTrigger className="h-8 text-xs">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {(Object.keys(ROOM_TYPE_LABELS) as RoomEl["type"][]).map((t) => (
+              <SelectItem key={t} value={t}>
+                {ROOM_TYPE_LABELS[t]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </Row>
+      <Row label="地面">
+        <Select value={el.floorStyle ?? "auto"} onValueChange={(v) => set({ floorStyle: v === "auto" ? null : (v as RoomEl["floorStyle"]) })}>
+          <SelectTrigger className="h-8 text-xs">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="auto">按类型默认</SelectItem>
+            {(Object.keys(FLOOR_STYLE_LABELS) as NonNullable<RoomEl["floorStyle"]>[]).map((t) => (
+              <SelectItem key={t} value={t}>
+                {FLOOR_STYLE_LABELS[t]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </Row>
+      <Row label="墙高">
+        <NumInput value={el.wallHeight ?? DEFAULT_WALL_HEIGHT} min={0} step={10} suffix="cm" onChange={(v) => set({ wallHeight: v === DEFAULT_WALL_HEIGHT ? null : Math.max(0, v) })} />
+      </Row>
+      <p className="text-[11px] text-muted-foreground">
+        {(b.w / 100).toFixed(2)} × {(b.h / 100).toFixed(2)} m · {area.toFixed(1)} m² · {el.points.length} 个顶点
+        {el.type === "corridor" ? " · 走廊不生成墙" : ""}
+      </p>
+    </Section>
+  );
+}
+
+// ── 门 ────────────────────────────────────────────────────────────────────────
+function DoorProps({ el, set }: { el: Extract<MapElement, { kind: "door" }>; set: (changes: Partial<Extract<MapElement, { kind: "door" }>>) => void }) {
+  const elements = useEditorStore((s) => s.elements);
+  const geom = resolveDoor(el, (id) => elements[id]);
+  const hostLen = geom ? Math.hypot(geom.b[0] - geom.a[0], geom.b[1] - geom.a[1]) : 0;
+  void hostLen;
+  return (
+    <Section title="门">
+      <Row label="宽度">
+        <NumInput value={el.w} min={20} step={10} suffix="cm" onChange={(v) => set({ w: Math.max(20, v) })} />
+      </Row>
+      <Row label="沿边位置">
+        <NumInput value={Math.round(el.offset)} min={0} step={10} suffix="cm" onChange={(v) => set({ offset: Math.max(0, v) })} />
+      </Row>
+      <Row label="开门方向">
+        <div className="flex items-center gap-2">
+          <Switch checked={el.swing === "out"} onCheckedChange={(v) => set({ swing: v ? "out" : "in" })} />
+          <span className="text-xs text-muted-foreground">{el.swing === "in" ? "向内开（X 切换）" : "向外开（X 切换）"}</span>
+        </div>
+      </Row>
+      <Row label="铰链侧">
+        <div className="flex items-center gap-2">
+          <Switch checked={el.hinge === "end"} onCheckedChange={(v) => set({ hinge: v ? "end" : "start" })} />
+          <span className="text-xs text-muted-foreground">{el.hinge === "start" ? "边起点侧（⇧X 切换）" : "边终点侧（⇧X 切换）"}</span>
+        </div>
+      </Row>
+      <p className="text-[11px] text-muted-foreground">{geom ? `挂在${geom.hostKind === "room" ? "房间" : "墙"}的边上，拖动可沿边滑动` : "宿主边不存在，请删除后重新放置"}</p>
+    </Section>
   );
 }

@@ -70,6 +70,7 @@ export async function saveLayout(actor: Actor, floorId: string, body: LayoutSave
             zoneId,
             status: op.seat.status,
             note: op.seat.note,
+            style: op.seat.style,
           };
           if (existing) {
             const releasing = op.seat.status !== "ACTIVE" && existing.employeeId;

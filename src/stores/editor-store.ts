@@ -3,7 +3,7 @@ import { temporal } from "zundo";
 import type { LayoutSnapshot } from "@/lib/map/diff";
 import type { FloorScene, MapElement } from "@/lib/map/types";
 
-export type Tool = "select" | "seat" | "zone" | "wall" | "door" | "label" | "furniture" | "image";
+export type Tool = "select" | "seat" | "room" | "zone" | "wall" | "door" | "label" | "furniture" | "image";
 export type SaveStatus = "saved" | "dirty" | "saving" | "conflict" | "error";
 
 export interface EditorState extends LayoutSnapshot {
@@ -133,9 +133,13 @@ export const useEditorStore = create<EditorState>()(
             }
           }
           if (removed.size === 0) return {};
-          // 删除区域时把座位的 zoneId 置空
+          // 删除区域时把座位的 zoneId 置空；删除房间 / 墙时连带删掉挂在上面的门（门不能没有宿主）
           for (const [id, el] of Object.entries(elements)) {
             if (el.kind === "seat" && el.zoneId && removed.has(el.zoneId)) elements[id] = { ...el, zoneId: null };
+            if (el.kind === "door" && removed.has(el.anchor.kind === "room" ? el.anchor.roomId : el.anchor.wallId)) {
+              delete elements[id];
+              removed.add(id);
+            }
           }
           return {
             elements,

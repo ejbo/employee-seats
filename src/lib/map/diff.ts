@@ -25,7 +25,7 @@ export function decorOf(s: LayoutSnapshot): FloorDecor {
     const el = s.elements[id];
     if (el && el.kind !== "seat" && el.kind !== "zone") elements.push(el);
   }
-  return { schemaVersion: 1, background: s.meta.background, elements };
+  return { schemaVersion: 2, background: s.meta.background, elements };
 }
 
 /** 从 lastSaved 到 current 需要的操作（座位/区域按元素级 diff，装饰整体替换）。 */
@@ -52,7 +52,7 @@ export function computeLayoutOps(before: LayoutSnapshot, after: LayoutSnapshot):
     if (!prev || !stableEqual({ ...prev, employeeId: null }, { ...s, employeeId: null })) {
       ops.push({
         type: "seat.upsert",
-        seat: { id: s.id, code: s.code, x: s.x, y: s.y, w: s.w, h: s.h, rotation: s.rotation, zoneId: s.zoneId, status: s.status, note: s.note },
+        seat: { id: s.id, code: s.code, x: s.x, y: s.y, w: s.w, h: s.h, rotation: s.rotation, zoneId: s.zoneId, status: s.status, note: s.note, style: s.style },
       });
     }
     seatsBefore.delete(s.id);

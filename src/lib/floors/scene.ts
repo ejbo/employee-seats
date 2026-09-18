@@ -67,6 +67,7 @@ export async function loadFloorPageData(floorId: string): Promise<FloorPageData 
       status: s.status,
       note: s.note,
       employeeId: s.employeeId,
+      style: (["desk-basic", "desk-l", "desk-l-left", "bench"].includes(s.style) ? s.style : "desk-basic") as SeatEl["style"],
     };
   });
   const zones: ZoneEl[] = [];

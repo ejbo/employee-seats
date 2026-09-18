@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { AlertTriangle, Check, CloudOff, Loader2 } from "lucide-react";
-import type { FurnitureType } from "@/lib/map/types";
 import { useEditorStore } from "@/stores/editor-store";
 import { useAutosave } from "@/hooks/use-autosave";
 import type { FloorPagePayload } from "@/components/floor/floor-workspace";
@@ -24,7 +23,7 @@ export function FloorEditor({
 }) {
   const floorId = payload.scene.floor.id;
   const hydratedFloorId = useEditorStore((s) => s.floorId);
-  const [furnitureType, setFurnitureType] = useState<FurnitureType>("meeting");
+  const [furnitureType, setFurnitureType] = useState<string>("desk-straight");
   const [showGrid, setShowGrid] = useState(true);
   const [arrayOpen, setArrayOpen] = useState(false);
 

@@ -191,3 +191,43 @@ body {
   transform-box: fill-box;
   transform-origin: center;
 }
+
+/* ── 蓝图配色（房间地面 / 线条 / 墙） ── */
+:root {
+  --bp-paper: #ffffff;
+  --bp-line: #3f3f46;
+  --bp-wall: #2f2f36;
+  --bp-object: #f4f4f6;
+  --bp-object-2: #e6e6ea;
+  --bp-plant: #dcebd5;
+  --bp-room-office: #f8f8fa;
+  --bp-room-meeting: #f1f3fb;
+  --bp-room-pantry: #f6f2ea;
+  --bp-room-restroom: #eef4f6;
+  --bp-room-elevator: #f0f0f2;
+  --bp-room-stairs: #f0f0f2;
+  --bp-room-storage: #f3f3f1;
+  --bp-room-reception: #f7f2f0;
+  --bp-room-corridor: #fbfbfc;
+  --bp-room-other: #f5f5f6;
+  --guide: #e11d74;
+}
+.dark {
+  --bp-paper: #151519;
+  --bp-line: #b4b4bd;
+  --bp-wall: #c9c9d2;
+  --bp-object: #22222a;
+  --bp-object-2: #2c2c35;
+  --bp-plant: #26332a;
+  --bp-room-office: #18181d;
+  --bp-room-meeting: #1a1c26;
+  --bp-room-pantry: #201d18;
+  --bp-room-restroom: #172023;
+  --bp-room-elevator: #1c1c21;
+  --bp-room-stairs: #1c1c21;
+  --bp-room-storage: #1d1d1b;
+  --bp-room-reception: #221c1a;
+  --bp-room-corridor: #151519;
+  --bp-room-other: #1b1b20;
+  --guide: #f472b6;
+}

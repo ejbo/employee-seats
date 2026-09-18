@@ -4,6 +4,7 @@ import { useStore } from "zustand";
 import {
   Armchair,
   DoorOpen,
+  Square,
   Grid3x3,
   Image as ImageIcon,
   LayoutGrid,
@@ -15,17 +16,17 @@ import {
   Type,
   Undo2,
 } from "lucide-react";
-import type { FurnitureType } from "@/lib/map/types";
-import { FURNITURE_LABELS } from "@/lib/map/types";
+import { CATALOG, CATEGORY_LABELS, type ObjectCategory } from "@/lib/map/catalog";
 import { redo, undo, useEditorStore, type Tool } from "@/stores/editor-store";
 import { cn } from "@/lib/cn";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 const TOOLS: { key: Tool; label: string; hint: string; icon: typeof MousePointer2 }[] = [
   { key: "select", label: "选择", hint: "V", icon: MousePointer2 },
   { key: "seat", label: "工位", hint: "S", icon: Armchair },
-  { key: "zone", label: "区域", hint: "Z", icon: SquareDashed },
+  { key: "room", label: "房间", hint: "R", icon: Square },
+  { key: "zone", label: "部门区域", hint: "Z", icon: SquareDashed },
   { key: "wall", label: "墙体", hint: "W", icon: PenLine },
   { key: "door", label: "门", hint: "D", icon: DoorOpen },
   { key: "label", label: "文字", hint: "T", icon: Type },
@@ -40,8 +41,8 @@ export function ToolPalette({
   onToggleGrid,
   onArray,
 }: {
-  furnitureType: FurnitureType;
-  onFurnitureType: (t: FurnitureType) => void;
+  furnitureType: string;
+  onFurnitureType: (t: string) => void;
   showGrid: boolean;
   onToggleGrid: () => void;
   onArray: () => void;
@@ -75,15 +76,20 @@ export function ToolPalette({
           </Tooltip>
         ))}
         {tool === "furniture" && (
-          <Select value={furnitureType} onValueChange={(v) => onFurnitureType(v as FurnitureType)}>
+          <Select value={furnitureType} onValueChange={onFurnitureType}>
             <SelectTrigger className="h-8 w-9 justify-center px-0 text-[10px] [&>svg]:hidden">
               <SelectValue />
             </SelectTrigger>
-            <SelectContent side="right" align="start">
-              {(Object.keys(FURNITURE_LABELS) as FurnitureType[]).map((t) => (
-                <SelectItem key={t} value={t}>
-                  {FURNITURE_LABELS[t]}
-                </SelectItem>
+            <SelectContent side="right" align="start" className="max-h-96">
+              {(Object.keys(CATEGORY_LABELS) as ObjectCategory[]).map((cat) => (
+                <SelectGroup key={cat}>
+                  <SelectLabel>{CATEGORY_LABELS[cat]}</SelectLabel>
+                  {CATALOG.filter((d) => d.category === cat).map((d) => (
+                    <SelectItem key={d.key} value={d.key}>
+                      {d.name}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
               ))}
             </SelectContent>
           </Select>

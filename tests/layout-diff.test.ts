@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { computeLayoutOps, type LayoutSnapshot } from "@/lib/map/diff";
 import type { SeatEl, WallEl, ZoneEl } from "@/lib/map/types";
 
-const seat = (id: string, x = 0): SeatEl => ({ kind: "seat", id, code: id.toUpperCase(), x, y: 0, w: 120, h: 60, rotation: 0, zoneId: null, status: "ACTIVE", note: "", employeeId: null });
+const seat = (id: string, x = 0): SeatEl => ({ kind: "seat", id, code: id.toUpperCase(), x, y: 0, w: 120, h: 60, rotation: 0, zoneId: null, status: "ACTIVE", note: "", employeeId: null, style: "desk-basic" });
 const zone: ZoneEl = { kind: "zone", id: "z1", name: "区域", departmentId: null, color: null, geometry: { type: "rect", x: 0, y: 0, w: 100, h: 100 }, sortOrder: 0 };
 const wall: WallEl = { kind: "wall", id: "w1", points: [[0, 0], [100, 0]], thickness: 15 };
 const meta = { width: 4000, height: 3000, gridSize: 20, background: null, backgroundKey: null };
@@ -27,7 +27,7 @@ describe("computeLayoutOps", () => {
     const after = snap({ w1: { ...wall, thickness: 20 } }, ["w1"], { ...meta, gridSize: 50 });
     const ops = computeLayoutOps(before, after);
     expect(ops).toEqual([
-      { type: "decor.set", decor: { schemaVersion: 1, background: null, elements: [{ ...wall, thickness: 20 }] } },
+      { type: "decor.set", decor: { schemaVersion: 2, background: null, elements: [{ ...wall, thickness: 20 }] } },
       { type: "floor.patch", patch: { gridSize: 50 } },
     ]);
   });

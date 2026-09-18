@@ -5,8 +5,11 @@ import { Canvas, useThree } from "@react-three/fiber";
 import { CameraControls } from "@react-three/drei";
 import * as THREE from "three";
 import { Maximize2, Minus, Plus } from "lucide-react";
-import type { DoorEl, FloorScene, FurnitureEl, SeatEl, WallEl, ZoneEl } from "@/lib/map/types";
-import { FURNITURE_LABELS, seatState } from "@/lib/map/types";
+import type { DoorEl, FloorScene, FurnitureEl, MapElement, RoomEl, SeatEl, WallEl, ZoneEl } from "@/lib/map/types";
+import { DEFAULT_WALL_HEIGHT, ROOM_TYPE_LABELS, WALL_THICKNESS, seatState } from "@/lib/map/types";
+import { catalogDef } from "@/lib/map/catalog";
+import { resolveDoor } from "@/lib/map/doors";
+import { polygonCentroid, roomEdges } from "@/lib/map/rectilinear";
 import { NEUTRAL_ZONE_COLOR } from "@/lib/map/colors";
 import { shortName } from "@/lib/map/geometry";
 import { useViewStore } from "@/stores/view-store";
@@ -20,7 +23,6 @@ import { Button } from "@/components/ui/button";
 const M = 0.01;
 const DESK_H = 0.72;
 const WALL_H = 1.2;
-const ROOM_H = 2.4;
 
 function rectCenter(x: number, y: number, w: number, h: number): [number, number] {
   return [(x + w / 2) * M, (y + h / 2) * M];
@@ -122,34 +124,98 @@ function Wall({ wall, p }: { wall: WallEl; p: Palette3D }) {
   );
 }
 
-function Door({ door, p }: { door: DoorEl; p: Palette3D }) {
-  const w = door.w * M;
+function Door({ door, byId, p }: { door: DoorEl; byId: (id: string) => MapElement | undefined; p: Palette3D }) {
+  const geom = useMemo(() => resolveDoor(door, byId), [door, byId]);
+  if (!geom) return null;
+  const w = geom.w * M;
+  const cx = ((geom.a[0] + geom.b[0]) / 2) * M;
+  const cz = ((geom.a[1] + geom.b[1]) / 2) * M;
+  const t = Math.max(0.06, geom.thickness * M);
+  // 门扇：绕铰链开 35°，向摆动侧
+  const hingeX = geom.hinge === "start" ? -w / 2 : w / 2;
+  const open = ((geom.hinge === "start" ? 1 : -1) * geom.swingSign * 35 * Math.PI) / 180;
   return (
-    <group position={[door.x * M, 0, door.y * M]} rotation={[0, (-door.rotation * Math.PI) / 180, 0]}>
-      <mesh position={[0, 1.05, door.flip ? w / 2 : -w / 2]} rotation={[0, Math.PI / 2, 0]}>
-        <boxGeometry args={[w, 2.1, 0.05]} />
+    <group position={[cx, 0, cz]} rotation={[0, (-geom.rotation * Math.PI) / 180, 0]}>
+      {/* 门框 */}
+      <mesh position={[-w / 2 - 0.02, 1.05, 0]}>
+        <boxGeometry args={[0.04, 2.1, t + 0.02]} />
         <meshStandardMaterial color={p.deskEdge} roughness={0.7} />
+      </mesh>
+      <mesh position={[w / 2 + 0.02, 1.05, 0]}>
+        <boxGeometry args={[0.04, 2.1, t + 0.02]} />
+        <meshStandardMaterial color={p.deskEdge} roughness={0.7} />
+      </mesh>
+      <mesh position={[0, 2.12, 0]}>
+        <boxGeometry args={[w + 0.08, 0.04, t + 0.02]} />
+        <meshStandardMaterial color={p.deskEdge} roughness={0.7} />
+      </mesh>
+      {/* 门扇 */}
+      <group position={[hingeX, 0, 0]} rotation={[0, open, 0]}>
+        <mesh position={[geom.hinge === "start" ? w / 2 : -w / 2, 1.05, 0]} castShadow>
+          <boxGeometry args={[w, 2.1, 0.04]} />
+          <meshStandardMaterial color={p.desk} roughness={0.6} />
+        </mesh>
+      </group>
+    </group>
+  );
+}
+
+/** 房间：地面色块 + 沿边的墙（走廊不生成墙）。A2 起由 deriveWalls 统一派生。 */
+function Room({ room, p }: { room: RoomEl; p: Palette3D }) {
+  const shape = useMemo(() => {
+    const sh = new THREE.Shape();
+    room.points.forEach(([x, y], i) => (i === 0 ? sh.moveTo(x * M, y * M) : sh.lineTo(x * M, y * M)));
+    sh.closePath();
+    return sh;
+  }, [room.points]);
+  const edges = useMemo(() => roomEdges(room.points), [room.points]);
+  const [cx, cy] = useMemo(() => polygonCentroid(room.points), [room.points]);
+  const label = useMemo(() => labelTexture(room.name || ROOM_TYPE_LABELS[room.type], "", { fg: p.sub, sub: p.sub, bg: "rgba(0,0,0,0)" }), [room.name, room.type, p.sub]);
+  const wallH = Math.min(WALL_H, ((room.wallHeight ?? DEFAULT_WALL_HEIGHT) * M) || WALL_H);
+  const t = WALL_THICKNESS * M;
+  return (
+    <group>
+      <mesh rotation={[Math.PI / 2, 0, 0]} position={[0, 0.004, 0]} receiveShadow>
+        <shapeGeometry args={[shape]} />
+        <meshStandardMaterial color={p.room} roughness={0.95} side={THREE.DoubleSide} />
+      </mesh>
+      {room.type !== "corridor" &&
+        edges.map((e) => {
+          const len = Math.hypot(e.b[0] - e.a[0], e.b[1] - e.a[1]) * M;
+          const mx = ((e.a[0] + e.b[0]) / 2) * M;
+          const mz = ((e.a[1] + e.b[1]) / 2) * M;
+          const angle = -Math.atan2(e.b[1] - e.a[1], e.b[0] - e.a[0]);
+          return (
+            <mesh key={e.index} position={[mx, wallH / 2, mz]} rotation={[0, angle, 0]} castShadow receiveShadow>
+              <boxGeometry args={[len + t, wallH, t]} />
+              <meshStandardMaterial color={p.wall} roughness={0.8} />
+            </mesh>
+          );
+        })}
+      <mesh position={[cx * M, 0.01, cy * M]} rotation={[-Math.PI / 2, 0, 0]}>
+        <planeGeometry args={[2.4, 1.2]} />
+        <meshBasicMaterial map={label} transparent depthWrite={false} />
       </mesh>
     </group>
   );
 }
 
+const OBJECT_BOX = new THREE.BoxGeometry(1, 1, 1);
+
 function Furniture({ item, p }: { item: FurnitureEl; p: Palette3D }) {
-  const room = item.type !== "printer" && item.type !== "custom";
-  const h = room ? ROOM_H : 1.0;
+  const def = catalogDef(item.typeKey);
+  const h = Math.max(0.1, def.h * M);
   const [cx, cz] = rectCenter(item.x, item.y, item.w, item.h);
-  const label = useMemo(() => labelTexture(item.name || FURNITURE_LABELS[item.type], "", { fg: p.sub, sub: p.sub, bg: "rgba(0,0,0,0)" }), [item.name, item.type, p.sub]);
+  const name = item.name || def.name;
+  const label = useMemo(() => labelTexture(name, "", { fg: p.sub, sub: p.sub, bg: "rgba(0,0,0,0)" }), [name, p.sub]);
   const lw = Math.min(item.w * M * 0.9, 3);
+  const sx = item.w * M;
+  const sz = item.h * M;
   return (
     <group position={[cx, 0, cz]} rotation={[0, (-item.rotation * Math.PI) / 180, 0]}>
-      <mesh position={[0, h / 2, 0]} castShadow>
-        <boxGeometry args={[item.w * M, h, item.h * M]} />
-        <meshStandardMaterial color={p.room} transparent opacity={room ? 0.35 : 0.9} roughness={0.9} />
+      <mesh position={[0, h / 2, 0]} scale={[sx, h, sz]} castShadow receiveShadow geometry={OBJECT_BOX}>
+        <meshStandardMaterial color={p.desk} roughness={0.8} />
       </mesh>
-      <lineSegments position={[0, h / 2, 0]}>
-        <edgesGeometry args={[new THREE.BoxGeometry(item.w * M, h, item.h * M)]} />
-        <lineBasicMaterial color={p.roomEdge} />
-      </lineSegments>
       <mesh position={[0, h + 0.02, 0]} rotation={[-Math.PI / 2, 0, 0]}>
         <planeGeometry args={[lw, lw / 2]} />
         <meshBasicMaterial map={label} transparent depthWrite={false} />
@@ -324,6 +390,8 @@ export function Scene3D({ scene, onSeatClick }: { scene: FloorScene; onSeatClick
   const [tooltip, setTooltip] = useState<{ seatId: string; left: number; top: number; containerW: number } | null>(null);
 
   const { floor, seats, zones, decor, employees, departments } = scene;
+  const decorById = useMemo(() => new Map(decor.elements.map((el) => [el.id, el] as const)), [decor.elements]);
+  const byId = useCallback((id: string) => decorById.get(id), [decorById]);
   const zoneColor = (z: ZoneEl) => z.color ?? (z.departmentId ? departments[z.departmentId]?.color : undefined) ?? NEUTRAL_ZONE_COLOR;
   const hoveredSeat = hoveredSeatId ? seats.find((s) => s.id === hoveredSeatId) : null;
 
@@ -357,10 +425,12 @@ export function Scene3D({ scene, onSeatClick }: { scene: FloorScene; onSeatClick
         ))}
         {decor.elements.map((el) => {
           switch (el.kind) {
+            case "room":
+              return <Room key={el.id} room={el} p={palette} />;
             case "wall":
               return <Wall key={el.id} wall={el} p={palette} />;
             case "door":
-              return <Door key={el.id} door={el} p={palette} />;
+              return <Door key={el.id} door={el} byId={byId} p={palette} />;
             case "furniture":
               return <Furniture key={el.id} item={el} p={palette} />;
             default:

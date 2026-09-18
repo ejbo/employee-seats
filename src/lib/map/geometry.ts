@@ -55,13 +55,24 @@ export function rotatedRectBounds(x: number, y: number, w: number, h: number, ro
   return { x: cx - bw / 2, y: cy - bh / 2, w: bw, h: bh };
 }
 
-export function elementBounds(el: MapElement): Bounds {
+/** 门的世界几何由宿主边解析（src/lib/map/doors.ts），这里只能通过传入的 geoms 取包围盒。 */
+export interface DoorBoundsLookup {
+  get(id: string): { a: [number, number]; b: [number, number]; w: number } | undefined;
+}
+
+export function elementBounds(el: MapElement, doorGeoms?: DoorBoundsLookup): Bounds {
   switch (el.kind) {
     case "seat":
     case "furniture":
       return rotatedRectBounds(el.x, el.y, el.w, el.h, el.rotation);
-    case "door":
-      return rotatedRectBounds(el.x, el.y - el.w, el.w, el.w, el.rotation);
+    case "room":
+      return pointsBounds(el.points);
+    case "door": {
+      const g = doorGeoms?.get(el.id);
+      if (!g) return { x: 0, y: 0, w: 0, h: 0 };
+      const b = pointsBounds([g.a, g.b]);
+      return { x: b.x - g.w / 2, y: b.y - g.w / 2, w: b.w + g.w, h: b.h + g.w };
+    }
     case "label":
       return { x: el.x, y: el.y - el.fontSize, w: el.text.length * el.fontSize, h: el.fontSize * 1.3 };
     case "wall":
@@ -103,7 +114,7 @@ export function centerTransform(cx: number, cy: number, k: number, viewportW: nu
 }
 
 export function isDecor(el: MapElement): el is DecorElement {
-  return el.kind === "wall" || el.kind === "door" || el.kind === "label" || el.kind === "furniture";
+  return el.kind === "room" || el.kind === "wall" || el.kind === "door" || el.kind === "label" || el.kind === "furniture";
 }
 export function isSeat(el: MapElement): el is SeatEl {
   return el.kind === "seat";

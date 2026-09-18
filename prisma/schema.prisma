@@ -95,7 +95,7 @@ model Floor {
   /// 底图文件键（UPLOAD_DIR 内相对路径）
   backgroundKey String?
   /// { schemaVersion, background?, elements: (Wall|Door|Label|Furniture)[] }
-  decor         Json     @default("{\"schemaVersion\":1,\"elements\":[]}")
+  decor         Json     @default("{\"schemaVersion\":2,\"background\":null,\"elements\":[]}")
   /// 布局乐观锁：每次布局保存 +1
   version       Int      @default(1)
   createdAt     DateTime @default(now())
@@ -194,6 +194,8 @@ model Seat {
   rotation   Float      @default(0)
   status     SeatStatus @default(ACTIVE)
   note       String     @default("")
+  /// 工位样式：desk-basic | desk-l | desk-l-left | bench
+  style      String     @default("desk-basic")
   employeeId String?    @unique
   employee   Employee?  @relation(fields: [employeeId], references: [id], onDelete: SetNull)
   createdAt  DateTime   @default(now())
