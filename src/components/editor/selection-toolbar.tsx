@@ -6,7 +6,7 @@
  */
 import { AlignCenterHorizontal, AlignCenterVertical, AlignEndHorizontal, AlignEndVertical, AlignHorizontalSpaceBetween, AlignStartHorizontal, AlignStartVertical, AlignVerticalSpaceBetween, Copy, FlipHorizontal2, FlipVertical2, Hash, LayoutGrid, RotateCcw, RotateCw, Shapes, SquareDashedMousePointer, Trash2 } from "lucide-react";
 import type { AlignMode } from "@/lib/map/batch";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 export interface SelectionToolbarActions {
   align: (mode: AlignMode) => void;
@@ -41,7 +41,8 @@ function Sep() {
 export function SelectionToolbar({ left, top, count, seatCount, roomSelected, actions }: { left: number; top: number; count: number; seatCount: number; roomSelected: boolean; actions: SelectionToolbarActions }) {
   const multi = count > 1;
   return (
-    <div data-ui className="absolute z-10 flex -translate-x-1/2 -translate-y-full items-center gap-0.5 rounded-lg border border-border bg-surface/95 p-0.5 shadow-pop backdrop-blur" style={{ left, top: top - 10 }}>
+    <TooltipProvider delayDuration={300}>
+      <div data-ui className="absolute z-10 flex -translate-x-1/2 -translate-y-full items-center gap-0.5 rounded-lg border border-border bg-surface/95 p-0.5 shadow-pop backdrop-blur" style={{ left, top: top - 10 }}>
       {multi && (
         <>
           <Btn icon={AlignStartVertical} label="左对齐" onClick={() => actions.align("left")} />
@@ -72,6 +73,7 @@ export function SelectionToolbar({ left, top, count, seatCount, roomSelected, ac
       )}
       <Btn icon={Copy} label="复制一份（⌘D）" onClick={actions.duplicate} />
       <Btn icon={Trash2} label="删除（⌫）" onClick={actions.remove} />
-    </div>
+      </div>
+    </TooltipProvider>
   );
 }
