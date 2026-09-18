@@ -94,6 +94,7 @@ export interface EditorCanvasProps {
   showGrid: boolean;
   onToggleGrid: () => void;
   onToggleLibrary: () => void;
+  onToggleHelp: () => void;
   onSaveNow: () => void;
   onRenumber: (seatIds: string[]) => void;
   onFillRoom: (roomId: string) => void;
@@ -102,7 +103,7 @@ export interface EditorCanvasProps {
   svgRef?: React.RefObject<SVGSVGElement | null>;
 }
 
-export function EditorCanvas({ employees, departments, furnitureType, seatStyle, showGrid, onToggleGrid, onToggleLibrary, onSaveNow, onRenumber, onFillRoom, previewSeats, svgRef }: EditorCanvasProps) {
+export function EditorCanvas({ employees, departments, furnitureType, seatStyle, showGrid, onToggleGrid, onToggleLibrary, onToggleHelp, onSaveNow, onRenumber, onFillRoom, previewSeats, svgRef }: EditorCanvasProps) {
   const vp = useViewport();
   const { transform, containerRef, fitToBounds, zoomBy, beginPan, screenToWorld, size } = vp;
   const elements = useEditorStore((s) => s.elements);
@@ -738,6 +739,10 @@ export function EditorCanvas({ employees, departments, furnitureType, seatStyle,
         onToggleLibrary();
         return;
       }
+      if (e.key === "?") {
+        onToggleHelp();
+        return;
+      }
       if (!mod && !e.shiftKey && TOOL_KEYS[key]) {
         if (key === "a") {
           const sel = st.selection.length === 1 ? st.elements[st.selection[0]] : undefined;
@@ -759,7 +764,7 @@ export function EditorCanvas({ employees, departments, furnitureType, seatStyle,
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("keyup", onKeyUp);
     };
-  }, [copySelection, duplicateSelection, finishWall, onSaveNow, onToggleGrid, onToggleLibrary, pasteClipboard, removeSelection, wallDraft.length]);
+  }, [copySelection, duplicateSelection, finishWall, onSaveNow, onToggleGrid, onToggleHelp, onToggleLibrary, pasteClipboard, removeSelection, wallDraft.length]);
 
   // 右键菜单：点别处关闭
   useEffect(() => {

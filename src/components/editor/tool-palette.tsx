@@ -3,6 +3,7 @@
 import { useStore } from "zustand";
 import {
   Armchair,
+  CircleHelp,
   DoorOpen,
   Square,
   Grid3x3,
@@ -38,12 +39,14 @@ export function ToolPalette({
   showGrid,
   onToggleGrid,
   onArray,
+  onHelp,
 }: {
   libraryOpen: boolean;
   onToggleLibrary: () => void;
   showGrid: boolean;
   onToggleGrid: () => void;
   onArray: () => void;
+  onHelp: () => void;
 }) {
   const tool = useEditorStore((s) => s.tool);
   const setTool = useEditorStore((s) => s.setTool);
@@ -85,6 +88,14 @@ export function ToolPalette({
             </button>
           </TooltipTrigger>
           <TooltipContent side="right">批量生成工位阵列</TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button type="button" onClick={onHelp} className="flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground transition hover:bg-muted hover:text-foreground" aria-label="快捷键速查">
+              <CircleHelp className="h-4 w-4" />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="right">快捷键速查 <kbd className="ml-1 rounded bg-muted px-1 font-mono text-[10px] text-muted-foreground">?</kbd></TooltipContent>
         </Tooltip>
         <Tooltip>
           <TooltipTrigger asChild>

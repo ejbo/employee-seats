@@ -14,6 +14,7 @@ import { SeatArrayDialog } from "./seat-array-dialog";
 import { LibraryPanel, type Placement } from "./library-panel";
 import { RenumberDialog } from "./renumber-dialog";
 import { FillRoomDialog } from "./fill-room-dialog";
+import { ShortcutsHelp } from "./shortcuts-help";
 import type { SeatEl } from "@/lib/map/types";
 
 export function FloorEditor({
@@ -34,6 +35,7 @@ export function FloorEditor({
   const [renumberIds, setRenumberIds] = useState<string[] | null>(null);
   const [fillRoomId, setFillRoomId] = useState<string | null>(null);
   const [previewSeats, setPreviewSeats] = useState<SeatEl[] | null>(null);
+  const [helpOpen, setHelpOpen] = useState(false);
 
   // 进入编辑器：把当前场景灌进 store（切换楼层时重新灌）
   useEffect(() => {
@@ -69,6 +71,7 @@ export function FloorEditor({
         showGrid={showGrid}
         onToggleGrid={() => setShowGrid((g) => !g)}
         onToggleLibrary={() => setLibraryOpen((o) => !o)}
+        onToggleHelp={() => setHelpOpen((o) => !o)}
         onSaveNow={saveNow}
         onRenumber={setRenumberIds}
         onFillRoom={setFillRoomId}
@@ -81,6 +84,7 @@ export function FloorEditor({
         showGrid={showGrid}
         onToggleGrid={() => setShowGrid((g) => !g)}
         onArray={() => setArrayOpen(true)}
+        onHelp={() => setHelpOpen(true)}
       />
       {libraryOpen && (
         <LibraryPanel
@@ -96,6 +100,7 @@ export function FloorEditor({
       <SaveStatusPill onSaveNow={saveNow} />
       <SeatArrayDialog open={arrayOpen} onOpenChange={setArrayOpen} />
       <RenumberDialog open={renumberIds !== null} onOpenChange={(o) => !o && setRenumberIds(null)} seatIds={renumberIds ?? []} />
+      <ShortcutsHelp open={helpOpen} onOpenChange={setHelpOpen} />
       <FillRoomDialog open={fillRoomId !== null} onOpenChange={(o) => !o && setFillRoomId(null)} roomId={fillRoomId} onPreview={setPreviewSeats} />
 
       <Dialog open={conflict !== null}>
