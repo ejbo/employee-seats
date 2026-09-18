@@ -87,6 +87,7 @@ const schema = z
     LLM_MODEL: optStr(),
     LLM_USE_PROXY: bool(),
     ANTHROPIC_API_KEY: optStr(),
+    OPENAI_API_KEY: optStr(),
 
     // ── 文件与导入 ──────────────────────────────────────────────────────────
     UPLOAD_DIR: z.string().default("./storage"),

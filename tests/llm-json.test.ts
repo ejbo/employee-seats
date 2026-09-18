@@ -29,6 +29,17 @@ describe("resolveLLMConfig", () => {
     expect(cfg.baseUrl).toBe("https://api.anthropic.com");
     expect(isConfigured(cfg)).toBe(true);
   });
+  it("borrows OPENAI_API_KEY for the openai-compatible provider and defaults to api.openai.com", () => {
+    const cfg = resolveLLMConfig({ LLM_PROVIDER: "openai-compatible", OPENAI_API_KEY: "sk-x" });
+    expect(cfg.baseUrl).toBe("https://api.openai.com/v1");
+    expect(cfg.apiKey).toBe("sk-x");
+    expect(cfg.model).toBe("gpt-4.1");
+    expect(isConfigured(cfg)).toBe(true);
+    // 显式 LLM_API_KEY / LLM_BASE_URL 优先（内网网关）
+    const gw = resolveLLMConfig({ LLM_PROVIDER: "openai", LLM_BASE_URL: "https://gw/v1", LLM_MODEL: "m", LLM_API_KEY: "k", OPENAI_API_KEY: "sk-x" });
+    expect(gw.apiKey).toBe("k");
+    expect(gw.baseUrl).toBe("https://gw/v1");
+  });
   it("treats an openai-compatible endpoint as configured without a key", () => {
     const cfg = resolveLLMConfig({ LLM_PROVIDER: "openai", LLM_BASE_URL: "https://gw/v1", LLM_MODEL: "m" });
     expect(cfg.provider).toBe("openai-compatible");

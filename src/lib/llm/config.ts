@@ -22,7 +22,12 @@ export interface LLMEnvInput {
   LLM_MODEL?: string;
   LLM_USE_PROXY?: boolean;
   ANTHROPIC_API_KEY?: string;
+  /** 开发机常见：shell 里已 export 的 OpenAI key，openai-compatible 且 LLM_API_KEY 未设时借用 */
+  OPENAI_API_KEY?: string;
 }
+
+export const OPENAI_BASE_URL = "https://api.openai.com/v1";
+export const DEFAULT_OPENAI_MODEL = "gpt-4.1";
 
 function normalizeProvider(raw: string | undefined): LLMProviderId {
   const v = (raw ?? "").trim().toLowerCase();
@@ -32,9 +37,10 @@ function normalizeProvider(raw: string | undefined): LLMProviderId {
 
 export function resolveLLMConfig(env: LLMEnvInput): LLMConfig {
   const provider = normalizeProvider(env.LLM_PROVIDER);
-  const apiKey = env.LLM_API_KEY ?? (provider === "anthropic" ? env.ANTHROPIC_API_KEY : undefined);
-  const baseUrl = env.LLM_BASE_URL ?? (provider === "anthropic" ? DEFAULT_ANTHROPIC_BASE_URL : "");
-  const model = env.LLM_MODEL ?? (provider === "anthropic" ? DEFAULT_ANTHROPIC_MODEL : "");
+  const apiKey = env.LLM_API_KEY ?? (provider === "anthropic" ? env.ANTHROPIC_API_KEY : env.OPENAI_API_KEY);
+  // openai-compatible 没给 base URL 但有 OpenAI key → 默认公网 OpenAI；内网网关必须显式配置 LLM_BASE_URL
+  const baseUrl = env.LLM_BASE_URL ?? (provider === "anthropic" ? DEFAULT_ANTHROPIC_BASE_URL : env.OPENAI_API_KEY && !env.LLM_API_KEY ? OPENAI_BASE_URL : "");
+  const model = env.LLM_MODEL ?? (provider === "anthropic" ? DEFAULT_ANTHROPIC_MODEL : baseUrl === OPENAI_BASE_URL ? DEFAULT_OPENAI_MODEL : "");
   return { provider, apiKey, baseUrl, model, useProxy: env.LLM_USE_PROXY ?? false };
 }
 

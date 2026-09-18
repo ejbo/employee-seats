@@ -24,12 +24,14 @@ export class OpenAiProvider implements LLMProvider {
   private readonly apiKey: string | undefined;
   private readonly baseUrl: string;
   private readonly fetchImpl: typeof fetch;
+  private readonly useCompletionTokens: boolean;
 
   constructor(opts: OpenAiProviderOptions) {
     this.apiKey = opts.apiKey;
     this.baseUrl = opts.baseUrl.replace(/\/$/, "");
     this.model = opts.model;
     this.fetchImpl = opts.fetchImpl ?? fetch;
+    this.useCompletionTokens = /api\.openai\.com/.test(this.baseUrl);
   }
 
   async complete(opts: LLMCompleteOptions): Promise<LLMCompletion> {
@@ -42,8 +44,9 @@ export class OpenAiProvider implements LLMProvider {
       const res = await this.fetchImpl(`${this.baseUrl}/chat/completions`, {
         method: "POST",
         headers,
-        // 不用 response_format：自建 vLLM 上不稳定，统一走 extractJsonObject
-        body: JSON.stringify({ model: opts.model ?? this.model, ...(opts.maxTokens ? { max_tokens: opts.maxTokens } : {}), stream: false, messages }),
+        // 不用 response_format：自建 vLLM 上不稳定，统一走 extractJsonObject。
+        // 公网 OpenAI 新模型只认 max_completion_tokens（max_tokens 会 400）；自建 vLLM / 网关仍用 max_tokens。
+        body: JSON.stringify({ model: opts.model ?? this.model, ...(opts.maxTokens ? { [this.useCompletionTokens ? "max_completion_tokens" : "max_tokens"]: opts.maxTokens } : {}), stream: false, messages }),
         signal: deadline.signal,
       });
       if (!res.ok) {
