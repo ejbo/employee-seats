@@ -17,6 +17,7 @@ import { useClipboardStore } from "@/stores/clipboard-store";
 import { SelectionToolbar, type SelectionToolbarActions } from "./selection-toolbar";
 import { catalogDef, SEAT_PRESET_BY_STYLE } from "@/lib/map/catalog";
 import { useLibraryDragStore } from "@/stores/library-drag-store";
+import { useObjectTypesStore } from "@/stores/object-types-store";
 import { useViewport } from "@/hooks/use-viewport";
 import { redo, undo, useEditorStore, type Tool } from "@/stores/editor-store";
 import { Button } from "@/components/ui/button";
@@ -89,6 +90,8 @@ export interface EditorCanvasProps {
   departments: Record<string, DepartmentSummary>;
   /** 物件工具当前选中的物件库 key */
   furnitureType: string;
+  /** 自定义物件 id（typeKey 为 custom 时） */
+  furnitureTypeId?: string | null;
   /** 工位工具当前的桌型 */
   seatStyle: SeatStyle;
   showGrid: boolean;
@@ -103,7 +106,7 @@ export interface EditorCanvasProps {
   svgRef?: React.RefObject<SVGSVGElement | null>;
 }
 
-export function EditorCanvas({ employees, departments, furnitureType, seatStyle, showGrid, onToggleGrid, onToggleLibrary, onToggleHelp, onSaveNow, onRenumber, onFillRoom, previewSeats, svgRef }: EditorCanvasProps) {
+export function EditorCanvas({ employees, departments, furnitureType, furnitureTypeId = null, seatStyle, showGrid, onToggleGrid, onToggleLibrary, onToggleHelp, onSaveNow, onRenumber, onFillRoom, previewSeats, svgRef }: EditorCanvasProps) {
   const vp = useViewport();
   const { transform, containerRef, fitToBounds, zoomBy, beginPan, screenToWorld, size } = vp;
   const elements = useEditorStore((s) => s.elements);
@@ -152,7 +155,12 @@ export function EditorCanvas({ employees, departments, furnitureType, seatStyle,
   const snapPt = useCallback((p: Pt, free = false): Pt => (free ? p : { x: snap(p.x, grid), y: snap(p.y, grid) }), [grid]);
 
   const seatCodes = useMemo(() => new Set(Object.values(elements).filter((e): e is SeatEl => e.kind === "seat").map((e) => e.code)), [elements]);
-  const objectDef = useMemo(() => catalogDef(furnitureType), [furnitureType]);
+  const objectTypes = useObjectTypesStore((s) => s.types);
+  const customType = furnitureTypeId ? (objectTypes[furnitureTypeId] ?? null) : null;
+  const objectDef = useMemo(() => {
+    const def = catalogDef(furnitureType);
+    return customType ? { ...def, key: "custom", name: customType.name, w: customType.w, d: customType.d, h: customType.h } : def;
+  }, [customType, furnitureType]);
   const seatPreset = SEAT_PRESET_BY_STYLE[seatStyle];
   const roomList = useMemo(() => Object.values(elements).filter((e): e is RoomEl => e.kind === "room"), [elements]);
   const selectedRoom = useMemo(() => {
@@ -374,7 +382,7 @@ export function EditorCanvas({ employees, departments, furnitureType, seatStyle,
       }
       if (tool === "furniture") {
         const p = snapPlace(world, objectDef.w, objectDef.d, e.altKey);
-        add({ kind: "furniture", id: crypto.randomUUID(), typeKey: objectDef.key, typeId: null, x: p.x, y: p.y, w: objectDef.w, h: objectDef.d, rotation: 0, name: "", flip: false });
+        add({ kind: "furniture", id: crypto.randomUUID(), typeKey: objectDef.key, typeId: customType?.id ?? null, x: p.x, y: p.y, w: objectDef.w, h: objectDef.d, rotation: 0, name: "", flip: false });
         if (!e.shiftKey) setTool("select");
         return;
       }
@@ -416,7 +424,7 @@ export function EditorCanvas({ employees, departments, furnitureType, seatStyle,
         return;
       }
     },
-    [add, beginPan, collect, ctx, elements, grid, objectDef, overlay.door, screenToWorld, seatCodes, seatPreset, select, selectedRoom, selection, setTool, snapPlace, snapPt, snapThreshold, tool],
+    [add, beginPan, collect, ctx, customType, elements, grid, objectDef, overlay.door, screenToWorld, seatCodes, seatPreset, select, selectedRoom, selection, setTool, snapPlace, snapPt, snapThreshold, tool],
   );
 
   const onPointerMove = useCallback(
@@ -781,7 +789,11 @@ export function EditorCanvas({ employees, departments, furnitureType, seatStyle,
   const libDrag = useLibraryDragStore((s) => s.drag);
   useEffect(() => {
     if (!libDrag) return;
-    const sizeOf = () => (libDrag.kind === "seat" ? { w: SEAT_PRESET_BY_STYLE[libDrag.style].w, h: SEAT_PRESET_BY_STYLE[libDrag.style].h } : { w: catalogDef(libDrag.typeKey).w, h: catalogDef(libDrag.typeKey).d });
+    const sizeOf = () => {
+      if (libDrag.kind === "seat") return { w: SEAT_PRESET_BY_STYLE[libDrag.style].w, h: SEAT_PRESET_BY_STYLE[libDrag.style].h };
+      const t = libDrag.typeId ? useObjectTypesStore.getState().types[libDrag.typeId] : null;
+      return t ? { w: t.w, h: t.d } : { w: catalogDef(libDrag.typeKey).w, h: catalogDef(libDrag.typeKey).d };
+    };
     const overCanvas = (x: number, y: number) => {
       const el = document.elementFromPoint(x, y);
       return Boolean(el && containerRef.current?.contains(el) && !el.closest("[data-ui]"));
@@ -810,7 +822,7 @@ export function EditorCanvas({ employees, departments, furnitureType, seatStyle,
         const codes = new Set(Object.values(st.elements).filter((e): e is SeatEl => e.kind === "seat").map((e) => e.code));
         st.add({ kind: "seat", id: crypto.randomUUID(), code: nextSeatCode(codes), x: p.x, y: p.y, w, h, rotation: 0, zoneId: null, status: "ACTIVE", note: "", employeeId: null, style: d.style });
       } else {
-        st.add({ kind: "furniture", id: crypto.randomUUID(), typeKey: d.typeKey, typeId: null, x: p.x, y: p.y, w, h, rotation: 0, name: "", flip: false });
+        st.add({ kind: "furniture", id: crypto.randomUUID(), typeKey: d.typeKey, typeId: d.typeId ?? null, x: p.x, y: p.y, w, h, rotation: 0, name: "", flip: false });
       }
     };
     const onCancel = () => {
@@ -959,7 +971,7 @@ export function EditorCanvas({ employees, departments, furnitureType, seatStyle,
               case "furniture":
                 return (
                   <g key={id} data-id={id} className="cursor-move">
-                    <ObjectGlyph item={el} selected={sel} lod={lod} k={k} />
+                    <ObjectGlyph item={el} selected={sel} lod={lod} k={k} custom={el.typeId ? (objectTypes[el.typeId] ?? null) : null} />
                   </g>
                 );
               case "label":
@@ -1012,10 +1024,12 @@ export function EditorCanvas({ employees, departments, furnitureType, seatStyle,
             );
           })()}
           {overlay.cursor && (tool === "furniture" || libDrag?.kind === "object") && (() => {
-            const def = libDrag?.kind === "object" ? catalogDef(libDrag.typeKey) : objectDef;
+            const dragType = libDrag?.kind === "object" && libDrag.typeId ? (objectTypes[libDrag.typeId] ?? null) : null;
+            const def = libDrag?.kind === "object" ? (dragType ? { ...catalogDef("custom"), name: dragType.name, w: dragType.w, d: dragType.d, h: dragType.h } : catalogDef(libDrag.typeKey)) : objectDef;
+            const custom = libDrag?.kind === "object" ? dragType : customType;
             return (
               <g style={{ pointerEvents: "none" }} opacity={0.55}>
-                <ObjectGlyph item={{ kind: "furniture", id: "preview", typeKey: def.key, typeId: null, x: overlay.cursor.x, y: overlay.cursor.y, w: def.w, h: def.d, rotation: 0, name: "", flip: false }} def={def} lod={lod} k={k} />
+                <ObjectGlyph item={{ kind: "furniture", id: "preview", typeKey: def.key, typeId: custom?.id ?? null, x: overlay.cursor.x, y: overlay.cursor.y, w: def.w, h: def.d, rotation: 0, name: "", flip: false }} def={def} lod={lod} k={k} custom={custom} />
               </g>
             );
           })()}

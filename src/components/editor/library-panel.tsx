@@ -4,8 +4,13 @@
  * 物件库面板：搜索 + 分类 + 卡片（内嵌俯视符号）。点击卡片进入盖章模式（在画布上点击放置，⇧ 连续），
  * 按住拖到画布上则直接落位。
  */
-import { useMemo, useState } from "react";
-import { Search, X } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import useSWR from "swr";
+import { Search, Sparkles, X } from "lucide-react";
+import { fetcher } from "@/lib/api-client";
+import type { ObjectTypeSummary } from "@/lib/map/types";
+import { useObjectTypesStore } from "@/stores/object-types-store";
+import { ObjectFromPhotoDialog, TopDownPreview } from "./object-from-photo-dialog";
 import { CATALOG, CATEGORY_LABELS, SEAT_PRESETS, type ObjectCategory, type ObjectDef } from "@/lib/map/catalog";
 import type { SeatStyle } from "@/lib/map/types";
 import { Input } from "@/components/ui/input";
@@ -15,8 +20,30 @@ import { beginLibraryDrag, type LibraryPayload } from "@/stores/library-drag-sto
 
 export type Placement = LibraryPayload;
 
-const CATS: (ObjectCategory | "seat")[] = ["seat", "desk", "seating", "table", "storage", "office", "kitchen", "decor", "partition"];
-const CAT_LABELS: Record<ObjectCategory | "seat", string> = { seat: "工位", ...CATEGORY_LABELS };
+const CATS: (ObjectCategory | "seat" | "custom")[] = ["seat", "custom", "desk", "seating", "table", "storage", "office", "kitchen", "decor", "partition"];
+const CAT_LABELS: Record<ObjectCategory | "seat" | "custom", string> = { seat: "工位", custom: "自定义", ...CATEGORY_LABELS };
+
+function CustomCard({ t, active, onPick }: { t: ObjectTypeSummary; active: boolean; onPick: () => void }) {
+  return (
+    <button
+      type="button"
+      className={`flex w-full items-center gap-2 rounded-lg border px-2 py-1.5 text-left transition-colors hover:bg-muted ${active ? "border-(--info) bg-(--info)/10" : "border-transparent"}`}
+      onClick={onPick}
+      onPointerDown={(e) => beginLibraryDrag(e, { kind: "object", typeKey: "custom", typeId: t.id })}
+      title={`${t.name} · ${t.w}×${t.d}×${t.h} cm`}
+    >
+      <div className="flex w-16 shrink-0 justify-center">
+        <TopDownPreview spec={t.spec} size={44} />
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-xs font-medium">{t.name}</div>
+        <div className="font-mono text-[10px] text-muted-foreground">
+          {t.w}×{t.d} cm
+        </div>
+      </div>
+    </button>
+  );
+}
 
 function Thumb({ w, h, children }: { w: number; h: number; children: React.ReactNode }) {
   const pad = 8;
@@ -76,8 +103,15 @@ function SeatCard({ style, name, w, h, active, onPick }: { style: SeatStyle; nam
 
 export function LibraryPanel({ placement, onPick, onClose }: { placement: Placement | null; onPick: (p: Placement) => void; onClose: () => void }) {
   const [q, setQ] = useState("");
-  const [cat, setCat] = useState<ObjectCategory | "seat" | "all">("all");
+  const [cat, setCat] = useState<ObjectCategory | "seat" | "custom" | "all">("all");
+  const [photoOpen, setPhotoOpen] = useState(false);
+  const { data: customData, mutate: refetchCustom } = useSWR<{ objects: (ObjectTypeSummary & { key: string })[] }>("/api/objects", fetcher);
+  const merge = useObjectTypesStore((s) => s.merge);
+  useEffect(() => {
+    if (customData?.objects) merge(customData.objects);
+  }, [customData, merge]);
   const query = q.trim().toLowerCase();
+  const customs = useMemo(() => (customData?.objects ?? []).filter((t) => (cat === "all" || cat === "custom") && (!query || t.name.toLowerCase().includes(query))), [cat, customData, query]);
   const objects = useMemo(
     () => CATALOG.filter((d) => d.key !== "custom" && (cat === "all" || d.category === cat) && (!query || d.name.toLowerCase().includes(query) || d.key.includes(query))),
     [cat, query],
@@ -117,6 +151,21 @@ export function LibraryPanel({ placement, onPick, onClose }: { placement: Placem
         </div>
       </div>
       <div className="thin-scrollbar flex-1 overflow-y-auto px-2 pb-2">
+        {(cat === "all" || cat === "custom") && (
+          <div className="mb-1">
+            <div className="flex items-center px-2 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wider text-subtle">
+              自定义
+              <Button variant="ghost" size="sm" className="ml-auto h-6 px-1.5 text-[11px] normal-case tracking-normal" onClick={() => setPhotoOpen(true)}>
+                <Sparkles className="h-3 w-3" />
+                从照片生成
+              </Button>
+            </div>
+            {customs.length === 0 && <p className="px-2 pb-1 text-[11px] text-muted-foreground">上传一张家具照片，AI 帮你建成 3D 物件。</p>}
+            {customs.map((t) => (
+              <CustomCard key={t.id} t={t} active={placement?.kind === "object" && placement.typeId === t.id} onPick={() => onPick({ kind: "object", typeKey: "custom", typeId: t.id })} />
+            ))}
+          </div>
+        )}
         {seats.length > 0 && (
           <div className="mb-1">
             <div className="px-2 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wider text-subtle">工位</div>
@@ -133,8 +182,17 @@ export function LibraryPanel({ placement, onPick, onClose }: { placement: Placem
             ))}
           </div>
         ))}
-        {seats.length === 0 && objects.length === 0 && <div className="px-2 py-6 text-center text-xs text-muted-foreground">没有匹配的物件</div>}
+        {seats.length === 0 && objects.length === 0 && customs.length === 0 && <div className="px-2 py-6 text-center text-xs text-muted-foreground">没有匹配的物件</div>}
       </div>
+      <ObjectFromPhotoDialog
+        open={photoOpen}
+        onOpenChange={setPhotoOpen}
+        onCreated={(t) => {
+          merge([t]);
+          void refetchCustom();
+          onPick({ kind: "object", typeKey: "custom", typeId: t.id });
+        }}
+      />
     </aside>
   );
 }

@@ -7,6 +7,8 @@ import { NEUTRAL_ZONE_COLOR } from "@/lib/map/colors";
 import { polygonArea, polygonCentroid } from "@/lib/map/rectilinear";
 import type { DoorGeom } from "@/lib/map/doors";
 import { catalogDef, type ObjectDef } from "@/lib/map/catalog";
+import type { ObjectSpec } from "@/lib/map/object-spec";
+import { projectTopDown } from "@/lib/ai/object-spec-schema";
 
 /** 细节层级：0 只画色块；1 姓名；2 姓名 + 编号/工号 */
 export type Lod = 0 | 1 | 2;
@@ -149,15 +151,32 @@ export function DoorGlyph({ geom, selected, k = 1 }: { geom: DoorGeom; selected?
 }
 
 // ── 物件（物件库） ──────────────────────────────────────────────────────────
-export function ObjectGlyph({ item, def, lod, k = 1, selected }: { item: FurnitureEl; def?: ObjectDef; lod: Lod; k?: number; selected?: boolean }) {
+export function ObjectGlyph({ item, def, lod, k = 1, selected, custom }: { item: FurnitureEl; def?: ObjectDef; lod: Lod; k?: number; selected?: boolean; /** 自定义物件：用规格的俯视投影画 */ custom?: { name: string; spec: ObjectSpec } | null }) {
   const d = def ?? catalogDef(item.typeKey);
-  const label = item.name || d.name;
+  const label = item.name || custom?.name || d.name;
   const fontSize = Math.min(Math.max(12, Math.min(item.w, item.h) / 4), Math.max(14, 13 / k));
   const showLabel = lod >= 1 || item.w * k >= 56;
   const stroke = selected ? "var(--info)" : "var(--bp-line)";
   const sw = selected ? 3 / k : 1.25 / k;
   const { w, h } = item;
   const body = (() => {
+    if (custom) {
+      const [fw, fd] = custom.spec.footprint;
+      const sx = w / fw;
+      const sy = h / fd;
+      return (
+        <>
+          <rect x={0} y={0} width={w} height={h} fill="var(--bp-object)" fillOpacity={0.5} stroke={stroke} strokeWidth={sw} strokeDasharray={`${4 / k} ${3 / k}`} />
+          {projectTopDown(custom.spec).map((s, i) =>
+            s.kind === "circle" ? (
+              <ellipse key={i} cx={(s.x + s.w / 2) * sx} cy={(s.y + s.h / 2) * sy} rx={(s.w / 2) * sx} ry={(s.h / 2) * sy} fill="var(--bp-object)" stroke={stroke} strokeWidth={sw * 0.8} />
+            ) : (
+              <rect key={i} x={s.x * sx} y={s.y * sy} width={s.w * sx} height={s.h * sy} fill="var(--bp-object)" stroke={stroke} strokeWidth={sw * 0.8} />
+            ),
+          )}
+        </>
+      );
+    }
     switch (d.glyph) {
       case "table-round":
         return <ellipse cx={w / 2} cy={h / 2} rx={w / 2} ry={h / 2} fill="var(--bp-object)" stroke={stroke} strokeWidth={sw} />;

@@ -249,3 +249,24 @@ model AuditLog {
   @@index([batchId])
   @@schema("employee_seats")
 }
+
+/// 自定义物件（照片 → 参数化 3D 规格），供物件库「自定义」分类使用。
+model ObjectType {
+  id           String   @id @default(cuid())
+  key          String   @unique
+  name         String
+  category     String   @default("office")
+  w            Int
+  d            Int
+  h            Int
+  /// ObjectSpec DSL（parts 等），见 src/lib/map/object-spec.ts
+  spec         Json
+  thumbnailKey String?
+  createdById  String?
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([isActive, category])
+  @@schema("employee_seats")
+}

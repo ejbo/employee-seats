@@ -2,7 +2,7 @@ import { create } from "zustand";
 import type { SeatStyle } from "@/lib/map/types";
 
 /** 从物件库拖到画布上的东西 */
-export type LibraryPayload = { kind: "seat"; style: SeatStyle } | { kind: "object"; typeKey: string };
+export type LibraryPayload = { kind: "seat"; style: SeatStyle } | { kind: "object"; typeKey: string; typeId?: string | null };
 
 interface LibraryDragState {
   drag: LibraryPayload | null;

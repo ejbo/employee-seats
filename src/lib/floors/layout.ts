@@ -126,6 +126,12 @@ export async function saveLayout(actor: Actor, floorId: string, body: LayoutSave
           break;
         }
         case "decor.set": {
+          // 自定义物件必须存在且启用
+          const typeIds = Array.from(new Set(op.decor.elements.flatMap((el) => (el.kind === "furniture" && el.typeId ? [el.typeId] : []))));
+          if (typeIds.length) {
+            const found = await tx.objectType.count({ where: { id: { in: typeIds }, isActive: true } });
+            if (found !== typeIds.length) throw new ApiError(400, "unknown_object_type");
+          }
           await tx.floor.update({ where: { id: floorId }, data: { decor: op.decor as unknown as Prisma.InputJsonValue } });
           counts.decor = true;
           break;

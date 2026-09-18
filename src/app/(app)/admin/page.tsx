@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Building2, ClipboardList, Palette, UserCog } from "lucide-react";
+import { Boxes, Building2, ClipboardList, Palette, UserCog } from "lucide-react";
 import { requireRole } from "@/lib/auth/guards";
 
 export const metadata: Metadata = { title: "管理" };
@@ -10,6 +10,7 @@ const CARDS = [
   { href: "/admin/departments", title: "部门与颜色", desc: "维护部门列表与地图配色", icon: Palette, ready: true },
   { href: "/admin/users", title: "用户与权限", desc: "查看登录用户与授权，任免管理员", icon: UserCog, ready: true },
   { href: "/admin/audit", title: "变更记录", desc: "谁在何时改了什么", icon: ClipboardList, ready: true },
+  { href: "/admin/objects", title: "自定义物件", desc: "照片生成的 3D 物件：查看、改名、停用", icon: Boxes, ready: true },
 ];
 
 export default async function AdminPage() {

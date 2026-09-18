@@ -17,6 +17,7 @@ import { FillRoomDialog } from "./fill-room-dialog";
 import { ShortcutsHelp } from "./shortcuts-help";
 import { FloorplanWizard } from "./floorplan-import/floorplan-wizard";
 import { useEditorUiStore } from "@/stores/editor-ui-store";
+import { useObjectTypesStore } from "@/stores/object-types-store";
 import type { SeatEl } from "@/lib/map/types";
 
 export function FloorEditor({
@@ -41,9 +42,10 @@ export function FloorEditor({
   const wizardOpen = useEditorUiStore((s) => s.floorplanWizardOpen);
   const setWizardOpen = useEditorUiStore((s) => s.setFloorplanWizardOpen);
 
-  // 进入编辑器：把当前场景灌进 store（切换楼层时重新灌）
+  // 进入编辑器：把当前场景灌进 store（切换楼层时重新灌）；自定义物件登记表也同步
   useEffect(() => {
     if (useEditorStore.getState().floorId !== floorId) useEditorStore.getState().hydrate(payload.scene);
+    if (payload.scene.objectTypes) useObjectTypesStore.getState().merge(Object.values(payload.scene.objectTypes));
   }, [floorId, payload.scene]);
 
   const { saveNow, conflict, reload, force } = useAutosave({ floorId, enabled: hydratedFloorId === floorId, onSaved });
@@ -71,6 +73,7 @@ export function FloorEditor({
         employees={payload.scene.employees}
         departments={payload.scene.departments}
         furnitureType={placement.kind === "object" ? placement.typeKey : "desk-straight"}
+        furnitureTypeId={placement.kind === "object" ? (placement.typeId ?? null) : null}
         seatStyle={placement.kind === "seat" ? placement.style : "desk-basic"}
         showGrid={showGrid}
         onToggleGrid={() => setShowGrid((g) => !g)}

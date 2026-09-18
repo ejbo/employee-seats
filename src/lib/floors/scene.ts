@@ -1,7 +1,7 @@
 import "server-only";
 import { prisma } from "@/lib/db";
 import { parseDecor, zoneGeometrySchema } from "@/lib/map/schema";
-import type { EmployeeSummary, FloorScene, SeatEl, ZoneEl } from "@/lib/map/types";
+import type { EmployeeSummary, FloorScene, ObjectTypeSummary, SeatEl, ZoneEl } from "@/lib/map/types";
 
 export interface FloorPageData {
   scene: FloorScene;
@@ -41,7 +41,7 @@ export async function loadFloorPageData(floorId: string): Promise<FloorPageData 
   });
   if (!floor) return null;
 
-  const [departments, unassigned] = await Promise.all([
+  const [departments, unassigned, objectTypeRows] = await Promise.all([
     prisma.department.findMany({ select: { id: true, name: true, color: true }, orderBy: [{ sortOrder: "asc" }, { name: "asc" }] }),
     prisma.employee.findMany({
       where: { isActive: true, seat: null },
@@ -49,7 +49,10 @@ export async function loadFloorPageData(floorId: string): Promise<FloorPageData 
       orderBy: [{ name: "asc" }],
       take: 2000,
     }),
+    prisma.objectType.findMany({ where: { isActive: true }, select: { id: true, name: true, category: true, w: true, d: true, h: true, spec: true } }),
   ]);
+  const objectTypes: Record<string, ObjectTypeSummary> = {};
+  for (const t of objectTypeRows) objectTypes[t.id] = { id: t.id, name: t.name, category: t.category, w: t.w, d: t.d, h: t.h, spec: t.spec as unknown as ObjectTypeSummary["spec"] };
 
   const employees: Record<string, EmployeeSummary> = {};
   const seats: SeatEl[] = floor.seats.map((s) => {
@@ -92,6 +95,7 @@ export async function loadFloorPageData(floorId: string): Promise<FloorPageData 
       seats,
       zones,
       decor: parseDecor(floor.decor),
+      objectTypes,
       employees,
       departments: Object.fromEntries(departments.map((d) => [d.id, d])),
     },

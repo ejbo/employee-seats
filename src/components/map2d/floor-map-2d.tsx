@@ -200,7 +200,7 @@ export function FloorMap2D({ scene, assignMode = false, onSeatClick, onBackgroun
           {decor.elements.map((el) => {
             switch (el.kind) {
               case "furniture":
-                return <ObjectGlyph key={el.id} item={el} lod={lod} k={transform.k} />;
+                return <ObjectGlyph key={el.id} item={el} lod={lod} k={transform.k} custom={el.typeId ? (scene.objectTypes?.[el.typeId] ?? null) : null} />;
               case "label":
                 return <LabelText key={el.id} label={el} />;
               default:

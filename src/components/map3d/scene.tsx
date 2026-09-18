@@ -259,14 +259,15 @@ export function Scene3D({ scene, onSeatClick }: { scene: FloorScene; onSeatClick
               return <RoomFloor key={el.id} room={el} p={palette} />;
             case "furniture": {
               const def = catalogDef(el.typeKey);
-              const spec = specFor(def);
+              const customType = el.typeId ? scene.objectTypes?.[el.typeId] : undefined;
+              const spec = customType ? customType.spec : specFor(def);
               const sx = el.w / spec.footprint[0];
               const sz = el.h / spec.footprint[1];
               const procedural = <ProceduralObject spec={spec} position={[0, 0, 0]} scale={[el.flip ? -sx : sx, 1, sz]} p={palette} />;
-              const glb = glbFor(el.typeKey);
+              const glb = customType ? null : glbFor(el.typeKey);
               return (
                 <group key={el.id} position={[(el.x + el.w / 2) * M, 0, (el.y + el.h / 2) * M]} rotation={[0, (-el.rotation * Math.PI) / 180, 0]}>
-                  {glb ? <GlbProp url={glb} w={el.w} d={el.h} h={def.h} flip={el.flip} fallback={procedural} /> : procedural}
+                  {glb ? <GlbProp url={glb} w={el.w} d={el.h} h={customType?.h ?? def.h} flip={el.flip} fallback={procedural} /> : procedural}
                 </group>
               );
             }
