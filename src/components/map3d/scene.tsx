@@ -13,6 +13,8 @@ import { Doors, RoomFloor, WallsInstanced } from "./rooms";
 import { Workstations } from "./workstations";
 import { ProceduralObject } from "./procedural-object";
 import { specFor } from "@/lib/map/catalog";
+import { glbFor } from "@/lib/map/glb-props";
+import { GlbProp } from "./props";
 import { NEUTRAL_ZONE_COLOR } from "@/lib/map/colors";
 import { useViewStore } from "@/stores/view-store";
 import { useTheme } from "@/components/theme/theme-provider";
@@ -146,6 +148,54 @@ function CameraRig({ scene, controlsRef }: { scene: FloorScene; controlsRef: Rea
     return () => clearTimeout(t);
   }, [flyTo, scene.seats, controlsRef, size.width, size.height, setPulse]);
 
+  // 键盘：方向键平移、+/- 缩放、Q/E 转 45°、0 复位
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+      const c = controlsRef.current;
+      if (!c) return;
+      const step = Math.max(W, H) * 0.06;
+      switch (e.key) {
+        case "ArrowLeft":
+          void c.truck(-step, 0, true);
+          break;
+        case "ArrowRight":
+          void c.truck(step, 0, true);
+          break;
+        case "ArrowUp":
+          void c.forward(step, true);
+          break;
+        case "ArrowDown":
+          void c.forward(-step, true);
+          break;
+        case "+":
+        case "=":
+          void c.zoom(c.camera.zoom * 0.3, true);
+          break;
+        case "-":
+          void c.zoom(-c.camera.zoom * 0.25, true);
+          break;
+        case "q":
+        case "Q":
+          void c.rotate(-Math.PI / 4, 0, true);
+          break;
+        case "e":
+        case "E":
+          void c.rotate(Math.PI / 4, 0, true);
+          break;
+        case "0":
+          fit(true);
+          break;
+        default:
+          return;
+      }
+      e.preventDefault();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [W, H, controlsRef, fit]);
+
   void camera;
   return null;
 }
@@ -212,7 +262,13 @@ export function Scene3D({ scene, onSeatClick }: { scene: FloorScene; onSeatClick
               const spec = specFor(def);
               const sx = el.w / spec.footprint[0];
               const sz = el.h / spec.footprint[1];
-              return <ProceduralObject key={el.id} spec={spec} position={[(el.x + el.w / 2) * M, 0, (el.y + el.h / 2) * M]} rotationY={(-el.rotation * Math.PI) / 180} scale={[el.flip ? -sx : sx, 1, sz]} p={palette} />;
+              const procedural = <ProceduralObject spec={spec} position={[0, 0, 0]} scale={[el.flip ? -sx : sx, 1, sz]} p={palette} />;
+              const glb = glbFor(el.typeKey);
+              return (
+                <group key={el.id} position={[(el.x + el.w / 2) * M, 0, (el.y + el.h / 2) * M]} rotation={[0, (-el.rotation * Math.PI) / 180, 0]}>
+                  {glb ? <GlbProp url={glb} w={el.w} d={el.h} h={def.h} flip={el.flip} fallback={procedural} /> : procedural}
+                </group>
+              );
             }
             default:
               return null;
@@ -271,7 +327,7 @@ export function Scene3D({ scene, onSeatClick }: { scene: FloorScene; onSeatClick
         </Button>
       </div>
       <div data-ui className="pointer-events-none absolute bottom-3 left-14 rounded-md bg-surface/80 px-2 py-1 font-mono text-[10px] text-muted-foreground backdrop-blur">
-        拖动旋转 · 右键平移 · 滚轮缩放
+        拖动旋转 · 右键平移 · 滚轮缩放 · 方向键平移 · Q/E 转 45° · 0 复位
       </div>
     </div>
   );
